@@ -3,7 +3,6 @@
 import { useChat } from '@ai-sdk/react';
 import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { UserProfile, PropertyMatch } from '@/lib/scoring';
 import { Loader2, Send } from 'lucide-react';
@@ -21,6 +20,7 @@ export default function ChatInterface() {
   });
 
   const bottomRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const { messages, input, handleInputChange, handleSubmit, isLoading, addToolResult, append } = useChat({
     api: '/api/chat',
@@ -37,6 +37,14 @@ export default function ChatInterface() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
+
+  // Auto-resize textarea as user types
+  useEffect(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    ta.style.height = 'auto';
+    ta.style.height = `${ta.scrollHeight}px`;
+  }, [input]);
 
   const handleBudgetConfirm = (value: number, toolCallId: string) => {
     setProfile(prev => ({ ...prev, budget: value }));
@@ -107,7 +115,6 @@ export default function ChatInterface() {
 
             if (m.role === 'assistant' && !hasText && !hasTools) return null;
 
-            // Tool-only message (e.g. just the budget slider)
             if (m.role === 'assistant' && !hasText && hasTools) {
               return (
                 <div key={m.id} className="flex justify-start">
@@ -171,17 +178,26 @@ export default function ChatInterface() {
         </div>
       </div>
 
-      {/* Input */}
-      <form onSubmit={handleSubmit} className="p-4 border-t flex gap-2 shrink-0 bg-background">
-        <Input
+      {/* Input — textarea + send button stacked */}
+      <form onSubmit={handleSubmit} className="p-4 border-t flex flex-col gap-2 shrink-0 bg-background">
+        <textarea
+          ref={textareaRef}
           value={input}
-          placeholder="Type your message…"
           onChange={handleInputChange}
-          className="flex-1"
+          placeholder="Type your message…"
           disabled={isLoading}
+          rows={3}
+          className="w-full resize-none rounded-lg border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50 overflow-hidden"
         />
-        <Button type="submit" disabled={isLoading || !input.trim()}>
-          <Send className="h-4 w-4" />
+        <Button
+          type="submit"
+          disabled={isLoading || !input.trim()}
+          className="w-full"
+        >
+          {isLoading
+            ? <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            : <Send className="h-4 w-4 mr-2" />}
+          Send
         </Button>
       </form>
     </div>
