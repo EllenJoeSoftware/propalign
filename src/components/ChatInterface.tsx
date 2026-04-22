@@ -1,6 +1,6 @@
 'use client';
 
-import { useChat } from 'ai/react';
+import { useChat } from '@ai-sdk/react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,12 +23,12 @@ export default function ChatInterface() {
 
   const { messages, input, handleInputChange, handleSubmit, isLoading, addToolResult, append } = useChat({
     api: '/api/chat',
-    body: { profile },
+    body: { data: { profile } },
     initialMessages: [
       {
         id: 'initial-greeting',
         role: 'assistant',
-        content: 'Hi! I’m PropAlign AI. I’ll help you find the perfect home in South Africa. Are you looking to rent or buy?',
+        content: 'Hi! I\'m PropAlign AI. I\'ll help you find the perfect home in South Africa. Are you looking to rent or buy?',
       },
     ],
     onToolCall: ({ toolCall }) => {
@@ -132,7 +132,7 @@ export default function ChatInterface() {
               </div>
             </div>
           ))}
-          {isLoading && !messages.some(m => m.role === 'assistant' && m.content === '') && (
+          {isLoading && (
             <div className="flex justify-start">
               <div className="bg-muted border rounded-lg p-3 flex items-center space-x-2">
                 <Loader2 className="h-4 w-4 animate-spin" />
