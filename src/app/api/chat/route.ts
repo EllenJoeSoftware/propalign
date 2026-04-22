@@ -2,7 +2,7 @@ import { google } from '@ai-sdk/google';
 import { streamText, tool } from 'ai';
 import { z } from 'zod';
 import prisma from '@/lib/prisma';
-import { calculateSuitabilityScore, UserProfile, PropertyMatch } from '@/lib/scoring';
+import { calculateSuitabilityScore, UserProfile } from '@/lib/scoring';
 
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
@@ -65,5 +65,5 @@ export async function POST(req: Request) {
     },
   });
 
-  return result.toTextStreamResponse();
+  return result.toDataStreamResponse();
 }
