@@ -23,7 +23,6 @@ export default function ChatInterface() {
 
   const { messages, input, handleInputChange, handleSubmit, isLoading, addToolResult, append } = useChat({
     api: '/api/chat',
-    // body fields are merged into the POST body alongside messages
     body: { profile },
     initialMessages: [
       {
@@ -42,10 +41,7 @@ export default function ChatInterface() {
 
   const handleBudgetConfirm = async (value: number, toolCallId: string) => {
     setProfile(prev => ({ ...prev, budget: value }));
-    addToolResult({
-      toolCallId,
-      result: { budget: value, success: true },
-    });
+    addToolResult({ toolCallId, result: { budget: value, success: true } });
   };
 
   return (
@@ -63,76 +59,131 @@ export default function ChatInterface() {
 
       <ScrollArea className="flex-1 p-4">
         <div className="space-y-4">
-          {messages.map((m) => (
-            <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div
-                className={`max-w-[80%] rounded-lg p-3 ${
-                  m.role === 'user'
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted border shadow-sm'
-                }`}
-              >
-                <p className="text-sm whitespace-pre-wrap">{m.content}</p>
+          {messages.map((m) => {
+            // Don't render assistant messages that are pure tool calls with no text
+            const hasText = m.content && m.content.trim().length > 0;
+            const hasTools = m.toolInvocations && m.toolInvocations.length > 0;
 
-                {m.id === 'initial-greeting' && (
-                  <div className="mt-3 flex gap-2">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      className="h-7 text-[10px]"
-                      onClick={() => append({ role: 'user', content: 'I want to Rent' })}
-                    >
-                      Rent
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      className="h-7 text-[10px]"
-                      onClick={() => append({ role: 'user', content: 'I want to Buy' })}
-                    >
-                      Buy
-                    </Button>
+            if (m.role === 'assistant' && !hasText && !hasTools) return null;
+
+            // For tool-only messages, just render the widgets without a bubble
+            if (m.role === 'assistant' && !hasText && hasTools) {
+              return (
+                <div key={m.id} className="flex justify-start">
+                  <div className="max-w-[80%]">
+                    {m.toolInvocations?.map((toolInvocation) => {
+                      const { toolName, toolCallId, state } = toolInvocation;
+
+                      if (toolName === 'askForBudget' && state === 'call') {
+                        return (
+                          <BudgetWidget
+                            key={toolCallId}
+                            initialValue={(toolInvocation.args as any).initialValue}
+                            onConfirm={(val) => handleBudgetConfirm(val, toolCallId)}
+                          />
+                        );
+                      }
+                      if (toolName === 'searchProperties' && state === 'result') {
+                        const results = toolInvocation.result as PropertyMatch[];
+                        return (
+                          <div key={toolCallId} className="grid grid-cols-1 gap-3">
+                            {results.map((prop) => (
+                              <Card key={prop.id} className="p-3 border-l-4 border-l-green-500">
+                                <h3 className="font-bold text-sm">{prop.title}</h3>
+                                <p className="text-xs text-muted-foreground">R{prop.price.toLocaleString()}</p>
+                                <div className="mt-2 flex justify-between items-center">
+                                  <span className="text-xs font-bold px-2 py-1 bg-green-100 text-green-700 rounded">
+                                    {prop.score}% Match
+                                  </span>
+                                  <Button variant="outline" size="sm" className="h-7 text-xs">View Details</Button>
+                                </div>
+                                <p className="mt-2 text-[10px] leading-tight italic">{prop.explanation}</p>
+                              </Card>
+                            ))}
+                          </div>
+                        );
+                      }
+                      return null;
+                    })}
                   </div>
-                )}
+                </div>
+              );
+            }
 
-                {m.toolInvocations?.map((toolInvocation) => {
-                  const { toolName, toolCallId, state } = toolInvocation;
+            // Normal message bubble (with optional widgets below)
+            return (
+              <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div
+                  className={`max-w-[80%] rounded-lg p-3 ${
+                    m.role === 'user'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted border shadow-sm'
+                  }`}
+                >
+                  {hasText && (
+                    <p className="text-sm whitespace-pre-wrap">{m.content}</p>
+                  )}
 
-                  if (toolName === 'askForBudget' && state === 'call') {
-                    return (
-                      <BudgetWidget
-                        key={toolCallId}
-                        initialValue={(toolInvocation.args as any).initialValue}
-                        onConfirm={(val) => handleBudgetConfirm(val, toolCallId)}
-                      />
-                    );
-                  }
+                  {m.id === 'initial-greeting' && (
+                    <div className="mt-3 flex gap-2">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="h-7 text-[10px]"
+                        onClick={() => append({ role: 'user', content: 'I want to Rent' })}
+                      >
+                        Rent
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="h-7 text-[10px]"
+                        onClick={() => append({ role: 'user', content: 'I want to Buy' })}
+                      >
+                        Buy
+                      </Button>
+                    </div>
+                  )}
 
-                  if (toolName === 'searchProperties' && state === 'result') {
-                    const results = toolInvocation.result as PropertyMatch[];
-                    return (
-                      <div key={toolCallId} className="mt-4 grid grid-cols-1 gap-3">
-                        {results.map((prop) => (
-                          <Card key={prop.id} className="p-3 border-l-4 border-l-green-500">
-                            <h3 className="font-bold text-sm">{prop.title}</h3>
-                            <p className="text-xs text-muted-foreground">R{prop.price.toLocaleString()}</p>
-                            <div className="mt-2 flex justify-between items-center">
-                              <span className="text-xs font-bold px-2 py-1 bg-green-100 text-green-700 rounded">
-                                {prop.score}% Match
-                              </span>
-                              <Button variant="outline" size="sm" className="h-7 text-xs">View Details</Button>
-                            </div>
-                            <p className="mt-2 text-[10px] leading-tight italic">{prop.explanation}</p>
-                          </Card>
-                        ))}
-                      </div>
-                    );
-                  }
-                  return null;
-                })}
+                  {m.toolInvocations?.map((toolInvocation) => {
+                    const { toolName, toolCallId, state } = toolInvocation;
+
+                    if (toolName === 'askForBudget' && state === 'call') {
+                      return (
+                        <BudgetWidget
+                          key={toolCallId}
+                          initialValue={(toolInvocation.args as any).initialValue}
+                          onConfirm={(val) => handleBudgetConfirm(val, toolCallId)}
+                        />
+                      );
+                    }
+                    if (toolName === 'searchProperties' && state === 'result') {
+                      const results = toolInvocation.result as PropertyMatch[];
+                      return (
+                        <div key={toolCallId} className="mt-4 grid grid-cols-1 gap-3">
+                          {results.map((prop) => (
+                            <Card key={prop.id} className="p-3 border-l-4 border-l-green-500">
+                              <h3 className="font-bold text-sm">{prop.title}</h3>
+                              <p className="text-xs text-muted-foreground">R{prop.price.toLocaleString()}</p>
+                              <div className="mt-2 flex justify-between items-center">
+                                <span className="text-xs font-bold px-2 py-1 bg-green-100 text-green-700 rounded">
+                                  {prop.score}% Match
+                                </span>
+                                <Button variant="outline" size="sm" className="h-7 text-xs">View Details</Button>
+                              </div>
+                              <p className="mt-2 text-[10px] leading-tight italic">{prop.explanation}</p>
+                            </Card>
+                          ))}
+                        </div>
+                      );
+                    }
+                    return null;
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
+
           {isLoading && (
             <div className="flex justify-start">
               <div className="bg-muted border rounded-lg p-3 flex items-center space-x-2">
