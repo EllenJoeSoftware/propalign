@@ -1,4 +1,4 @@
-import { google } from '@ai-sdk/google';
+import { createOpenAI } from '@ai-sdk/openai';
 import { streamText, tool } from 'ai';
 import { z } from 'zod';
 import prisma from '@/lib/prisma';
@@ -6,12 +6,18 @@ import { calculateSuitabilityScore, UserProfile } from '@/lib/scoring';
 
 export const maxDuration = 30;
 
+// NVIDIA NIM — OpenAI-compatible endpoint
+const nvidia = createOpenAI({
+  baseURL: 'https://integrate.api.nvidia.com/v1',
+  apiKey: process.env.NVIDIA_API_KEY!,
+});
+
 export async function POST(req: Request) {
   console.log("Chat API hit");
 
-  if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
-    console.error("GOOGLE_GENERATIVE_AI_API_KEY is missing!");
-    return new Response(JSON.stringify({ error: 'GOOGLE_GENERATIVE_AI_API_KEY is not set' }), { status: 500 });
+  if (!process.env.NVIDIA_API_KEY) {
+    console.error("NVIDIA_API_KEY is missing!");
+    return new Response(JSON.stringify({ error: 'NVIDIA_API_KEY is not set' }), { status: 500 });
   }
 
   let body: any;
@@ -22,7 +28,7 @@ export async function POST(req: Request) {
   }
 
   const { messages, profile } = body;
-  console.log("messages count:", messages?.length, "profile:", JSON.stringify(profile));
+  console.log("messages count:", messages?.length);
 
   const currentProfile: UserProfile = profile || {
     netIncome: 0,
@@ -36,7 +42,7 @@ export async function POST(req: Request) {
 
   try {
     const result = streamText({
-      model: google('gemini-2.0-flash'),
+      model: nvidia('google/gemma-3n-e4b-it'),
       messages,
       system: `You are PropAlign AI, a friendly real estate assistant for South Africa.
 Your goal is to build a user profile and find the best properties.
@@ -83,19 +89,19 @@ If the profile is incomplete, ask for the missing info.`,
         console.error("streamText onError:", JSON.stringify(error, null, 2));
       },
       onFinish: ({ text, finishReason, usage }) => {
-        console.log("streamText finished. reason:", finishReason, "usage:", JSON.stringify(usage), "text length:", text?.length);
+        console.log("streamText finished. reason:", finishReason, "text length:", text?.length);
       },
     });
 
     return result.toDataStreamResponse({
       getErrorMessage: (error) => {
-        console.error("toDataStreamResponse error:", JSON.stringify(error, null, 2));
+        console.error("stream error:", JSON.stringify(error, null, 2));
         if (error instanceof Error) return error.message;
         return String(error);
       },
     });
   } catch (e: any) {
-    console.error("streamText threw:", e?.message, e?.cause, e?.stack);
+    console.error("streamText threw:", e?.message, e?.stack);
     return new Response(JSON.stringify({ error: e?.message ?? 'Unknown error' }), { status: 500 });
   }
 }
