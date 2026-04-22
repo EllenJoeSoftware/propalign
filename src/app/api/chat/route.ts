@@ -43,64 +43,58 @@ export async function POST(req: Request) {
     const result = streamText({
       model: nvidia('mistralai/mistral-large-3-675b-instruct-2512'),
       messages,
-      // Allow the model to call a tool then continue responding in the same request
-      maxSteps: 5,
-      system: `You are PropAlign AI — a real estate assistant exclusively for South Africa.
-You have full knowledge of South African suburbs, cities, and property market including areas like
-Roodepoort, Sandton, Soweto, Cape Town, Durban, Pretoria, Johannesburg, Centurion, and all other SA locations.
-Never say you lack information about South African areas — you know them well.
+      system: `You are PropAlign AI — a friendly real estate assistant for South Africa.
+You have full knowledge of all South African suburbs, cities, and areas.
+Never refuse or deflect questions about SA locations — you know them all.
 
-Your ONLY job is to collect the user's property requirements and find matches. Stay focused on this task at all times.
-Do not refuse questions about SA areas. Do not suggest external websites. Just help them find a property.
+Your job is to collect property requirements through natural conversation, then find matches.
 
-Current User Profile: ${JSON.stringify(currentProfile)}
+Current profile: ${JSON.stringify(currentProfile)}
 
-Collect the following — ask one question at a time, conversationally:
-1. Rent or buy (if not set)
-2. Monthly net income in ZAR (if netIncome is 0)
-3. Budget — use the askForBudget tool, never ask as plain text (if budget is 0)
-4. Preferred area or suburb in South Africa (acknowledge the area they mention positively)
-5. Minimum bedrooms (if minBedrooms is 1 / default)
-6. Lifestyle preferences e.g. near schools, pet friendly, close to transport
+Collection order (one question at a time):
+1. Rent or buy? → already known if isBuying is true/false in profile
+2. Monthly net income in ZAR? → already known if netIncome > 0
+3. Budget → ONLY use the askForBudget tool for this, never ask as plain text → already known if budget > 0
+4. Preferred suburb or area in SA?
+5. Minimum bedrooms?
+6. Lifestyle preferences (schools nearby, pet friendly, transport, etc)?
 
-Rules:
-- When the user mentions an area like "Roodepoort", acknowledge it and record it as a lifestyle preference, then ask the next question.
-- ALWAYS call updateProfile immediately when the user provides any info, then follow up with your next question in the same response.
-- Call askForBudget when it's time to ask about budget.
-- Call searchProperties once you have rent/buy, budget, and area.
-- Never break character. Never say you can't help with SA locations.`,
+IMPORTANT RULES:
+- Respond ONLY with plain conversational text. Do NOT call updateProfile — just talk naturally.
+- The ONLY tools you may call are: askForBudget (when collecting budget) and searchProperties (when ready to search).
+- After the user answers a question, immediately acknowledge it briefly and ask the next one in the same message.
+- When you have rent/buy, budget confirmed, and area — call searchProperties.
+- Never say you lack info about any SA area. Never suggest external websites.`,
       tools: {
-        updateProfile: tool({
-          description: 'Update the user profile with information the user provided. Always call this then continue the conversation.',
-          parameters: z.object({
-            netIncome: z.number().optional(),
-            budget: z.number().optional(),
-            isBuying: z.boolean().optional(),
-            minBedrooms: z.number().optional(),
-            transportMode: z.enum(['car', 'public', 'walk', 'bike']).optional(),
-            lifestylePreferences: z.array(z.string()).optional(),
-          }),
-          execute: async (params) => {
-            console.log("updateProfile called with:", params);
-            return { success: true, updatedFields: Object.keys(params) };
-          },
-        }),
-
-        // No execute = client-side tool. Stays in 'call' state until addToolResult is called.
+        // Client-side tool — no execute. Shows slider, stays in 'call' until user confirms.
         askForBudget: tool({
-          description: 'Show an interactive budget slider widget so the user can select their monthly budget in ZAR',
+          description: 'Show an interactive slider for the user to pick their monthly budget in ZAR. Call this ONLY when asking about budget.',
           parameters: z.object({
-            initialValue: z.number().optional().describe('Starting value for the slider in ZAR'),
+            initialValue: z.number().optional().describe('Starting slider value in ZAR, e.g. 10000'),
           }),
         }),
 
         searchProperties: tool({
-          description: 'Search and score properties based on the current user profile',
-          parameters: z.object({ limit: z.number().default(5) }),
-          execute: async ({ limit }) => {
+          description: 'Search and rank properties against the user profile. Call once you have enough info.',
+          parameters: z.object({
+            limit: z.number().default(5),
+            area: z.string().optional().describe('Preferred suburb or area'),
+            isBuying: z.boolean().optional(),
+            budget: z.number().optional(),
+            minBedrooms: z.number().optional(),
+          }),
+          execute: async ({ limit, area, isBuying, budget, minBedrooms }) => {
+            // Merge any params passed directly into the profile snapshot
+            const mergedProfile: UserProfile = {
+              ...currentProfile,
+              ...(isBuying !== undefined && { isBuying }),
+              ...(budget !== undefined && { budget }),
+              ...(minBedrooms !== undefined && { minBedrooms }),
+              ...(area && { lifestylePreferences: [...(currentProfile.lifestylePreferences ?? []), area] }),
+            };
             try {
               const properties = await prisma.property.findMany({ take: 20 });
-              const scored = properties.map((p: any) => calculateSuitabilityScore(p, currentProfile));
+              const scored = properties.map((p: any) => calculateSuitabilityScore(p, mergedProfile));
               return scored.sort((a: any, b: any) => b.score - a.score).slice(0, limit);
             } catch (dbErr: any) {
               console.error("DB error in searchProperties:", dbErr?.message);
@@ -112,8 +106,8 @@ Rules:
       onError: (error) => {
         console.error("streamText onError:", JSON.stringify(error, null, 2));
       },
-      onFinish: ({ text, finishReason, steps }) => {
-        console.log("streamText finished. reason:", finishReason, "steps:", steps?.length, "text length:", text?.length);
+      onFinish: ({ text, finishReason }) => {
+        console.log("streamText finished. reason:", finishReason, "text length:", text?.length);
       },
     });
 
