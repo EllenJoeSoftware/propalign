@@ -1,12 +1,9 @@
 import { createOpenAI } from '@ai-sdk/openai';
-import { streamText, tool } from 'ai';
-import { z } from 'zod';
-import prisma from '@/lib/prisma';
-import { calculateSuitabilityScore, UserProfile } from '@/lib/scoring';
+import { streamText } from 'ai';
+import { UserProfile } from '@/lib/scoring';
 
 export const maxDuration = 30;
 
-// NVIDIA NIM — OpenAI-compatible endpoint
 const nvidia = createOpenAI({
   baseURL: 'https://integrate.api.nvidia.com/v1',
   apiKey: process.env.NVIDIA_API_KEY!,
@@ -45,50 +42,25 @@ export async function POST(req: Request) {
       model: nvidia('google/gemma-3n-e4b-it'),
       messages,
       system: `You are PropAlign AI, a friendly real estate assistant for South Africa.
-Your goal is to build a user profile and find the best properties.
-Be conversational and ask one question at a time.
+Your goal is to collect information from the user and help them find the best properties to rent or buy.
+Be warm, conversational, and ask one question at a time.
 
 Current User Profile: ${JSON.stringify(currentProfile)}
 
-If the profile is incomplete, ask for the missing info.`,
-      tools: {
-        updateProfile: tool({
-          description: 'Update the user profile with information the user provided',
-          parameters: z.object({
-            name: z.string().optional(),
-            netIncome: z.number().optional(),
-            budget: z.number().optional(),
-            isBuying: z.boolean().optional(),
-            workLocation: z.object({ lat: z.number(), lng: z.number(), address: z.string() }).optional(),
-          }),
-          execute: async (params) => {
-            return { success: true, updatedFields: Object.keys(params) };
-          },
-        }),
-        askForBudget: tool({
-          description: 'Show an interactive budget slider widget to the user',
-          parameters: z.object({ initialValue: z.number().optional() }),
-          execute: async () => ({ success: true }),
-        }),
-        searchProperties: tool({
-          description: 'Search and score properties based on the current user profile',
-          parameters: z.object({ limit: z.number().default(5) }),
-          execute: async ({ limit }) => {
-            try {
-              const properties = await prisma.property.findMany({ take: 20 });
-              const scored = properties.map((p: any) => calculateSuitabilityScore(p, currentProfile));
-              return scored.sort((a: any, b: any) => b.score - a.score).slice(0, limit);
-            } catch (dbErr: any) {
-              console.error("DB error in searchProperties:", dbErr?.message);
-              return { error: 'Could not fetch properties' };
-            }
-          },
-        }),
-      },
+Guide the conversation to collect:
+1. Whether they want to rent or buy (isBuying: true/false)
+2. Their monthly net income in ZAR
+3. Their budget (max rent or purchase price in ZAR)
+4. Minimum number of bedrooms
+5. Preferred areas or suburbs
+6. Any lifestyle preferences (e.g. near schools, near public transport, pet friendly)
+
+Once you have enough info, tell them you'll search for matching properties and summarise what you found from the profile.
+Do NOT make up property listings — just have the conversation and collect the profile.`,
       onError: (error) => {
         console.error("streamText onError:", JSON.stringify(error, null, 2));
       },
-      onFinish: ({ text, finishReason, usage }) => {
+      onFinish: ({ text, finishReason }) => {
         console.log("streamText finished. reason:", finishReason, "text length:", text?.length);
       },
     });
