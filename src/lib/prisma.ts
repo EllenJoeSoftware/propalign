@@ -5,7 +5,10 @@ import * as mariadb from 'mariadb'
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient }
 
 function createPrismaClient() {
-  const pool = mariadb.createPool(process.env.DATABASE_URL!)
+  // mariadb driver requires mariadb:// scheme — rewrite mysql:// if needed
+  const rawUrl = process.env.DATABASE_URL!
+  const normalizedUrl = rawUrl.replace(/^mysql:\/\//, 'mariadb://')
+  const pool = mariadb.createPool(normalizedUrl)
   const adapter = new PrismaMariaDb(pool)
   return new PrismaClient({ adapter })
 }
