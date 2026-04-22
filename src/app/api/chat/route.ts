@@ -4,7 +4,6 @@ import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import { calculateSuitabilityScore, UserProfile } from '@/lib/scoring';
 
-// Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
 
 export async function POST(req: Request) {
@@ -19,14 +18,14 @@ export async function POST(req: Request) {
   try {
     body = await req.json();
   } catch (e) {
-    console.error("Failed to parse request body:", e);
     return new Response(JSON.stringify({ error: 'Invalid request body' }), { status: 400 });
   }
 
-  const { messages, data } = body;
-  console.log("messages count:", messages?.length, "data:", JSON.stringify(data));
+  // useChat sends body fields merged at top level alongside messages
+  const { messages, profile } = body;
+  console.log("messages count:", messages?.length, "profile:", JSON.stringify(profile));
 
-  const currentProfile: UserProfile = data?.profile || {
+  const currentProfile: UserProfile = profile || {
     netIncome: 0,
     budget: 0,
     isBuying: false,
@@ -40,16 +39,16 @@ export async function POST(req: Request) {
     const result = streamText({
       model: google('gemini-1.5-flash'),
       messages,
-      system: `You are PropAlign AI, a friendly real estate assistant for South Africa. 
-      Your goal is to build a user profile and find the best properties.
-      Be conversational, ask one question at a time.
-      
-      Current User Profile: ${JSON.stringify(currentProfile)}
-      
-      If the profile is incomplete, ask for the missing info.`,
+      system: `You are PropAlign AI, a friendly real estate assistant for South Africa.
+Your goal is to build a user profile and find the best properties.
+Be conversational and ask one question at a time.
+
+Current User Profile: ${JSON.stringify(currentProfile)}
+
+If the profile is incomplete, ask for the missing info.`,
       tools: {
         updateProfile: tool({
-          description: 'Update the user profile',
+          description: 'Update the user profile with information the user provided',
           parameters: z.object({
             name: z.string().optional(),
             netIncome: z.number().optional(),
@@ -62,17 +61,22 @@ export async function POST(req: Request) {
           },
         }),
         askForBudget: tool({
-          description: 'Show a budget slider',
+          description: 'Show an interactive budget slider widget to the user',
           parameters: z.object({ initialValue: z.number().optional() }),
           execute: async () => ({ success: true }),
         }),
         searchProperties: tool({
-          description: 'Search for properties',
+          description: 'Search and score properties based on the current user profile',
           parameters: z.object({ limit: z.number().default(5) }),
           execute: async ({ limit }) => {
-            const properties = await prisma.property.findMany({ take: 20 });
-            const scored = properties.map((p: any) => calculateSuitabilityScore(p, currentProfile));
-            return scored.sort((a: any, b: any) => b.score - a.score).slice(0, limit);
+            try {
+              const properties = await prisma.property.findMany({ take: 20 });
+              const scored = properties.map((p: any) => calculateSuitabilityScore(p, currentProfile));
+              return scored.sort((a: any, b: any) => b.score - a.score).slice(0, limit);
+            } catch (dbErr: any) {
+              console.error("DB error in searchProperties:", dbErr?.message);
+              return { error: 'Could not fetch properties' };
+            }
           },
         }),
       },

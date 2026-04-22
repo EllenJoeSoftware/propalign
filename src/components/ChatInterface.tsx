@@ -23,12 +23,13 @@ export default function ChatInterface() {
 
   const { messages, input, handleInputChange, handleSubmit, isLoading, addToolResult, append } = useChat({
     api: '/api/chat',
-    body: { data: { profile } },
+    // body fields are merged into the POST body alongside messages
+    body: { profile },
     initialMessages: [
       {
         id: 'initial-greeting',
         role: 'assistant',
-        content: 'Hi! I\'m PropAlign AI. I\'ll help you find the perfect home in South Africa. Are you looking to rent or buy?',
+        content: "Hi! I'm PropAlign AI. I'll help you find the perfect home in South Africa. Are you looking to rent or buy?",
       },
     ],
     onToolCall: ({ toolCall }) => {
@@ -75,17 +76,17 @@ export default function ChatInterface() {
 
                 {m.id === 'initial-greeting' && (
                   <div className="mt-3 flex gap-2">
-                    <Button 
-                      variant="secondary" 
-                      size="sm" 
+                    <Button
+                      variant="secondary"
+                      size="sm"
                       className="h-7 text-[10px]"
                       onClick={() => append({ role: 'user', content: 'I want to Rent' })}
                     >
                       Rent
                     </Button>
-                    <Button 
-                      variant="secondary" 
-                      size="sm" 
+                    <Button
+                      variant="secondary"
+                      size="sm"
                       className="h-7 text-[10px]"
                       onClick={() => append({ role: 'user', content: 'I want to Buy' })}
                     >
@@ -93,13 +94,13 @@ export default function ChatInterface() {
                     </Button>
                   </div>
                 )}
-                
+
                 {m.toolInvocations?.map((toolInvocation) => {
                   const { toolName, toolCallId, state } = toolInvocation;
 
                   if (toolName === 'askForBudget' && state === 'call') {
                     return (
-                      <BudgetWidget 
+                      <BudgetWidget
                         key={toolCallId}
                         initialValue={(toolInvocation.args as any).initialValue}
                         onConfirm={(val) => handleBudgetConfirm(val, toolCallId)}
