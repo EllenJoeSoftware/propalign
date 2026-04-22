@@ -25,10 +25,6 @@ export default function ChatInterface() {
   const { messages, input, handleInputChange, handleSubmit, isLoading, addToolResult, append } = useChat({
     api: '/api/chat',
     body: { profile },
-    // maxSteps: allow the model to call a tool then immediately continue
-    // responding without waiting for the user to send another message.
-    // e.g. updateProfile -> follow-up question happens in one round trip.
-    maxSteps: 5,
     initialMessages: [
       {
         id: 'initial-greeting',
@@ -38,29 +34,9 @@ export default function ChatInterface() {
     ],
   });
 
-  // Auto-scroll to bottom whenever messages change or loading state changes
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
-
-  // Keep profile state in sync when updateProfile tool result comes back
-  useEffect(() => {
-    for (const m of messages) {
-      if (m.role !== 'assistant') continue;
-      for (const inv of m.toolInvocations ?? []) {
-        if (inv.toolName === 'updateProfile' && inv.state === 'result') {
-          const args = inv.args as Partial<UserProfile>;
-          setProfile(prev => {
-            // Only update if something actually changed to avoid re-render loops
-            const changed = Object.keys(args).some(
-              k => (prev as any)[k] !== (args as any)[k]
-            );
-            return changed ? { ...prev, ...args } : prev;
-          });
-        }
-      }
-    }
-  }, [messages]);
 
   const handleBudgetConfirm = (value: number, toolCallId: string) => {
     setProfile(prev => ({ ...prev, budget: value }));
@@ -84,7 +60,7 @@ export default function ChatInterface() {
 
       if (toolName === 'searchProperties' && state === 'result') {
         const results = toolInvocation.result as PropertyMatch[];
-        if (!results?.length) return null;
+        if (!Array.isArray(results) || !results.length) return null;
         return (
           <div key={toolCallId} className={`grid grid-cols-1 gap-3 ${inBubble ? 'mt-4' : ''}`}>
             {results.map((prop) => (
@@ -122,17 +98,16 @@ export default function ChatInterface() {
         </div>
       </div>
 
-      {/* Messages — scrollable area */}
+      {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4">
         <div className="space-y-4">
           {messages.map((m) => {
             const hasText = m.content && m.content.trim().length > 0;
             const hasTools = m.toolInvocations && m.toolInvocations.length > 0;
 
-            // Skip completely empty messages
             if (m.role === 'assistant' && !hasText && !hasTools) return null;
 
-            // Tool-only message — render widgets without a bubble
+            // Tool-only message (e.g. just the budget slider)
             if (m.role === 'assistant' && !hasText && hasTools) {
               return (
                 <div key={m.id} className="flex justify-start">
@@ -143,7 +118,6 @@ export default function ChatInterface() {
               );
             }
 
-            // Normal bubble (text ± widgets)
             return (
               <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div
@@ -157,7 +131,6 @@ export default function ChatInterface() {
                     <p className="text-sm whitespace-pre-wrap leading-relaxed">{m.content}</p>
                   )}
 
-                  {/* Rent / Buy quick replies on greeting */}
                   {m.id === 'initial-greeting' && (
                     <div className="mt-3 flex gap-2">
                       <Button
@@ -194,12 +167,11 @@ export default function ChatInterface() {
             </div>
           )}
 
-          {/* Scroll anchor */}
           <div ref={bottomRef} />
         </div>
       </div>
 
-      {/* Input bar */}
+      {/* Input */}
       <form onSubmit={handleSubmit} className="p-4 border-t flex gap-2 shrink-0 bg-background">
         <Input
           value={input}
