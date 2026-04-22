@@ -25,6 +25,10 @@ export default function ChatInterface() {
   const { messages, input, handleInputChange, handleSubmit, isLoading, addToolResult, append } = useChat({
     api: '/api/chat',
     body: { profile },
+    // maxSteps: allow the model to call a tool then immediately continue
+    // responding without waiting for the user to send another message.
+    // e.g. updateProfile -> follow-up question happens in one round trip.
+    maxSteps: 5,
     initialMessages: [
       {
         id: 'initial-greeting',
@@ -32,11 +36,6 @@ export default function ChatInterface() {
         content: "Hi! I'm PropAlign AI. I'll help you find the perfect home in South Africa. Are you looking to rent or buy?",
       },
     ],
-    onToolCall: ({ toolCall }) => {
-      // updateProfile has an execute on the server, so this won't fire for it.
-      // This handler is only for client-side tools (no execute).
-      // askForBudget is handled via addToolResult in handleBudgetConfirm.
-    },
   });
 
   // Auto-scroll to bottom whenever messages change or loading state changes
@@ -44,7 +43,26 @@ export default function ChatInterface() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
 
-  const handleBudgetConfirm = async (value: number, toolCallId: string) => {
+  // Keep profile state in sync when updateProfile tool result comes back
+  useEffect(() => {
+    for (const m of messages) {
+      if (m.role !== 'assistant') continue;
+      for (const inv of m.toolInvocations ?? []) {
+        if (inv.toolName === 'updateProfile' && inv.state === 'result') {
+          const args = inv.args as Partial<UserProfile>;
+          setProfile(prev => {
+            // Only update if something actually changed to avoid re-render loops
+            const changed = Object.keys(args).some(
+              k => (prev as any)[k] !== (args as any)[k]
+            );
+            return changed ? { ...prev, ...args } : prev;
+          });
+        }
+      }
+    }
+  }, [messages]);
+
+  const handleBudgetConfirm = (value: number, toolCallId: string) => {
     setProfile(prev => ({ ...prev, budget: value }));
     addToolResult({ toolCallId, result: { budget: value, success: true } });
   };
