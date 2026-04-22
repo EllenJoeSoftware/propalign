@@ -1,10 +1,9 @@
 'use client';
 
 import { useChat } from '@ai-sdk/react';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card } from '@/components/ui/card';
 import { UserProfile, PropertyMatch } from '@/lib/scoring';
 import { Loader2, Send } from 'lucide-react';
@@ -21,6 +20,8 @@ export default function ChatInterface() {
     lifestylePreferences: [],
   });
 
+  const bottomRef = useRef<HTMLDivElement>(null);
+
   const { messages, input, handleInputChange, handleSubmit, isLoading, addToolResult, append } = useChat({
     api: '/api/chat',
     body: { profile },
@@ -32,21 +33,67 @@ export default function ChatInterface() {
       },
     ],
     onToolCall: ({ toolCall }) => {
-      if (toolCall.toolName === 'updateProfile') {
-        const args = toolCall.args as Partial<UserProfile>;
-        setProfile((prev) => ({ ...prev, ...args }));
-      }
+      // updateProfile has an execute on the server, so this won't fire for it.
+      // This handler is only for client-side tools (no execute).
+      // askForBudget is handled via addToolResult in handleBudgetConfirm.
     },
   });
+
+  // Auto-scroll to bottom whenever messages change or loading state changes
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isLoading]);
 
   const handleBudgetConfirm = async (value: number, toolCallId: string) => {
     setProfile(prev => ({ ...prev, budget: value }));
     addToolResult({ toolCallId, result: { budget: value, success: true } });
   };
 
+  const renderToolInvocations = (toolInvocations: any[], inBubble = false) => {
+    return toolInvocations.map((toolInvocation) => {
+      const { toolName, toolCallId, state } = toolInvocation;
+
+      if (toolName === 'askForBudget' && state === 'call') {
+        return (
+          <div key={toolCallId} className={inBubble ? 'mt-3' : ''}>
+            <BudgetWidget
+              initialValue={(toolInvocation.args as any).initialValue}
+              onConfirm={(val) => handleBudgetConfirm(val, toolCallId)}
+            />
+          </div>
+        );
+      }
+
+      if (toolName === 'searchProperties' && state === 'result') {
+        const results = toolInvocation.result as PropertyMatch[];
+        if (!results?.length) return null;
+        return (
+          <div key={toolCallId} className={`grid grid-cols-1 gap-3 ${inBubble ? 'mt-4' : ''}`}>
+            {results.map((prop) => (
+              <Card key={prop.id} className="p-3 border-l-4 border-l-green-500">
+                <h3 className="font-bold text-sm">{prop.title}</h3>
+                <p className="text-xs text-muted-foreground">R{prop.price.toLocaleString()}</p>
+                <div className="mt-2 flex justify-between items-center">
+                  <span className="text-xs font-bold px-2 py-1 bg-green-100 text-green-700 rounded">
+                    {prop.score}% Match
+                  </span>
+                  <Button variant="outline" size="sm" className="h-7 text-xs">View Details</Button>
+                </div>
+                <p className="mt-2 text-[10px] leading-tight italic">{prop.explanation}</p>
+              </Card>
+            ))}
+          </div>
+        );
+      }
+
+      return null;
+    });
+  };
+
   return (
-    <div className="flex flex-col h-[600px] w-full max-w-2xl mx-auto border rounded-lg bg-background shadow-lg">
-      <div className="p-4 border-b bg-muted/50 rounded-t-lg flex justify-between items-center">
+    <div className="flex flex-col h-screen w-full max-w-2xl mx-auto border-x bg-background">
+      {/* Header */}
+      <div className="p-4 border-b bg-muted/50 flex justify-between items-center shrink-0">
         <div>
           <h2 className="text-lg font-semibold">PropAlign AI</h2>
           <p className="text-xs text-muted-foreground">South Africa&apos;s Smart Real Estate Assistant</p>
@@ -57,79 +104,48 @@ export default function ChatInterface() {
         </div>
       </div>
 
-      <ScrollArea className="flex-1 p-4">
+      {/* Messages — scrollable area */}
+      <div className="flex-1 overflow-y-auto p-4">
         <div className="space-y-4">
           {messages.map((m) => {
-            // Don't render assistant messages that are pure tool calls with no text
             const hasText = m.content && m.content.trim().length > 0;
             const hasTools = m.toolInvocations && m.toolInvocations.length > 0;
 
+            // Skip completely empty messages
             if (m.role === 'assistant' && !hasText && !hasTools) return null;
 
-            // For tool-only messages, just render the widgets without a bubble
+            // Tool-only message — render widgets without a bubble
             if (m.role === 'assistant' && !hasText && hasTools) {
               return (
                 <div key={m.id} className="flex justify-start">
-                  <div className="max-w-[80%]">
-                    {m.toolInvocations?.map((toolInvocation) => {
-                      const { toolName, toolCallId, state } = toolInvocation;
-
-                      if (toolName === 'askForBudget' && state === 'call') {
-                        return (
-                          <BudgetWidget
-                            key={toolCallId}
-                            initialValue={(toolInvocation.args as any).initialValue}
-                            onConfirm={(val) => handleBudgetConfirm(val, toolCallId)}
-                          />
-                        );
-                      }
-                      if (toolName === 'searchProperties' && state === 'result') {
-                        const results = toolInvocation.result as PropertyMatch[];
-                        return (
-                          <div key={toolCallId} className="grid grid-cols-1 gap-3">
-                            {results.map((prop) => (
-                              <Card key={prop.id} className="p-3 border-l-4 border-l-green-500">
-                                <h3 className="font-bold text-sm">{prop.title}</h3>
-                                <p className="text-xs text-muted-foreground">R{prop.price.toLocaleString()}</p>
-                                <div className="mt-2 flex justify-between items-center">
-                                  <span className="text-xs font-bold px-2 py-1 bg-green-100 text-green-700 rounded">
-                                    {prop.score}% Match
-                                  </span>
-                                  <Button variant="outline" size="sm" className="h-7 text-xs">View Details</Button>
-                                </div>
-                                <p className="mt-2 text-[10px] leading-tight italic">{prop.explanation}</p>
-                              </Card>
-                            ))}
-                          </div>
-                        );
-                      }
-                      return null;
-                    })}
+                  <div className="max-w-[85%]">
+                    {renderToolInvocations(m.toolInvocations!, false)}
                   </div>
                 </div>
               );
             }
 
-            // Normal message bubble (with optional widgets below)
+            // Normal bubble (text ± widgets)
             return (
               <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div
-                  className={`max-w-[80%] rounded-lg p-3 ${
+                  className={`max-w-[85%] rounded-2xl px-4 py-3 ${
                     m.role === 'user'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted border shadow-sm'
+                      ? 'bg-primary text-primary-foreground rounded-br-sm'
+                      : 'bg-muted border shadow-sm rounded-bl-sm'
                   }`}
                 >
                   {hasText && (
-                    <p className="text-sm whitespace-pre-wrap">{m.content}</p>
+                    <p className="text-sm whitespace-pre-wrap leading-relaxed">{m.content}</p>
                   )}
 
+                  {/* Rent / Buy quick replies on greeting */}
                   {m.id === 'initial-greeting' && (
                     <div className="mt-3 flex gap-2">
                       <Button
                         variant="secondary"
                         size="sm"
-                        className="h-7 text-[10px]"
+                        className="h-7 text-xs"
                         onClick={() => append({ role: 'user', content: 'I want to Rent' })}
                       >
                         Rent
@@ -137,7 +153,7 @@ export default function ChatInterface() {
                       <Button
                         variant="secondary"
                         size="sm"
-                        className="h-7 text-[10px]"
+                        className="h-7 text-xs"
                         onClick={() => append({ role: 'user', content: 'I want to Buy' })}
                       >
                         Buy
@@ -145,40 +161,7 @@ export default function ChatInterface() {
                     </div>
                   )}
 
-                  {m.toolInvocations?.map((toolInvocation) => {
-                    const { toolName, toolCallId, state } = toolInvocation;
-
-                    if (toolName === 'askForBudget' && state === 'call') {
-                      return (
-                        <BudgetWidget
-                          key={toolCallId}
-                          initialValue={(toolInvocation.args as any).initialValue}
-                          onConfirm={(val) => handleBudgetConfirm(val, toolCallId)}
-                        />
-                      );
-                    }
-                    if (toolName === 'searchProperties' && state === 'result') {
-                      const results = toolInvocation.result as PropertyMatch[];
-                      return (
-                        <div key={toolCallId} className="mt-4 grid grid-cols-1 gap-3">
-                          {results.map((prop) => (
-                            <Card key={prop.id} className="p-3 border-l-4 border-l-green-500">
-                              <h3 className="font-bold text-sm">{prop.title}</h3>
-                              <p className="text-xs text-muted-foreground">R{prop.price.toLocaleString()}</p>
-                              <div className="mt-2 flex justify-between items-center">
-                                <span className="text-xs font-bold px-2 py-1 bg-green-100 text-green-700 rounded">
-                                  {prop.score}% Match
-                                </span>
-                                <Button variant="outline" size="sm" className="h-7 text-xs">View Details</Button>
-                              </div>
-                              <p className="mt-2 text-[10px] leading-tight italic">{prop.explanation}</p>
-                            </Card>
-                          ))}
-                        </div>
-                      );
-                    }
-                    return null;
-                  })}
+                  {hasTools && renderToolInvocations(m.toolInvocations!, true)}
                 </div>
               </div>
             );
@@ -186,23 +169,28 @@ export default function ChatInterface() {
 
           {isLoading && (
             <div className="flex justify-start">
-              <div className="bg-muted border rounded-lg p-3 flex items-center space-x-2">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span className="text-xs">PropAlign is thinking...</span>
+              <div className="bg-muted border rounded-2xl rounded-bl-sm px-4 py-3 flex items-center space-x-2">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">PropAlign is thinking…</span>
               </div>
             </div>
           )}
-        </div>
-      </ScrollArea>
 
-      <form onSubmit={handleSubmit} className="p-4 border-t flex space-x-2">
+          {/* Scroll anchor */}
+          <div ref={bottomRef} />
+        </div>
+      </div>
+
+      {/* Input bar */}
+      <form onSubmit={handleSubmit} className="p-4 border-t flex gap-2 shrink-0 bg-background">
         <Input
           value={input}
-          placeholder="Type your message..."
+          placeholder="Type your message…"
           onChange={handleInputChange}
           className="flex-1"
+          disabled={isLoading}
         />
-        <Button type="submit" disabled={isLoading}>
+        <Button type="submit" disabled={isLoading || !input.trim()}>
           <Send className="h-4 w-4" />
         </Button>
       </form>
