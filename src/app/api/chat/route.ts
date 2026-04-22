@@ -36,7 +36,7 @@ export async function POST(req: Request) {
 
   try {
     const result = streamText({
-      model: google('gemini-1.5-flash'),
+      model: google('gemini-2.0-flash'),
       messages,
       system: `You are PropAlign AI, a friendly real estate assistant for South Africa.
 Your goal is to build a user profile and find the best properties.
