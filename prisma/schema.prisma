@@ -1,0 +1,31 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model Property {
+  id           String   @id @default(cuid())
+  title        String
+  description  String   @db.Text
+  price        Float
+  location     String   // Suburb/City name
+  propertyType String   // e.g., Apartment, House, Townhouse
+  bedrooms     Int
+  bathrooms    Int
+  lat          Float
+  lng          Float
+  features     String   @db.Text // JSON string for features like ["Security", "Quiet", "Pool"]
+  imageUrl     String?
+  isForRent    Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([location])
+  @@index([price])
+}
