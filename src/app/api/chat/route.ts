@@ -78,27 +78,96 @@ IMPORTANT RULES:
           description: 'Search and rank properties against the user profile. Call once you have enough info.',
           parameters: z.object({
             limit: z.number().default(5),
-            area: z.string().optional().describe('Preferred suburb or area'),
-            isBuying: z.boolean().optional(),
-            budget: z.number().optional(),
-            minBedrooms: z.number().optional(),
+            area: z.string().optional().describe('Preferred suburb or area — matches the location column'),
+            isBuying: z.boolean().optional().describe('true = for sale, false = for rent'),
+            budget: z.number().optional().describe('Max price in ZAR'),
+            minBedrooms: z.number().optional().describe('Minimum number of bedrooms'),
+            propertyType: z.string().optional().describe('e.g. Apartment, House, Cottage, Studio, Townhouse'),
           }),
-          execute: async ({ limit, area, isBuying, budget, minBedrooms }) => {
-            // Merge any params passed directly into the profile snapshot
+          execute: async ({ limit, area, isBuying, budget, minBedrooms, propertyType }) => {
             const mergedProfile: UserProfile = {
               ...currentProfile,
               ...(isBuying !== undefined && { isBuying }),
               ...(budget !== undefined && { budget }),
               ...(minBedrooms !== undefined && { minBedrooms }),
-              ...(area && { lifestylePreferences: [...(currentProfile.lifestylePreferences ?? []), area] }),
+              ...(area && {
+                lifestylePreferences: [
+                  ...(currentProfile.lifestylePreferences ?? []),
+                  area,
+                ],
+              }),
             };
+
             try {
-              const properties = await prisma.property.findMany({ take: 20 });
-              const scored = properties.map((p: any) => calculateSuitabilityScore(p, mergedProfile));
-              return scored.sort((a: any, b: any) => b.score - a.score).slice(0, limit);
+              // Build WHERE filters that match the SQL schema columns
+              const where: any = {};
+
+              // isForRent column: true = renting, false = buying
+              if (isBuying !== undefined) {
+                where.isForRent = !isBuying;
+              }
+
+              // Filter by location (suburb/city) — partial match
+              if (area) {
+                where.location = { contains: area };
+              }
+
+              // Filter by max price
+              if (budget && budget > 0) {
+                where.price = { lte: budget };
+              }
+
+              // Filter by minimum bedrooms
+              if (minBedrooms && minBedrooms > 0) {
+                where.bedrooms = { gte: minBedrooms };
+              }
+
+              // Filter by property type
+              if (propertyType) {
+                where.propertyType = propertyType;
+              }
+
+              console.log("searchProperties WHERE:", JSON.stringify(where));
+
+              // Fetch up to 30 candidates then score & rank
+              const properties = await prisma.property.findMany({
+                where,
+                take: 30,
+                orderBy: { price: 'asc' },
+                select: {
+                  id: true,
+                  title: true,
+                  description: true,
+                  price: true,
+                  location: true,
+                  propertyType: true,
+                  bedrooms: true,
+                  bathrooms: true,
+                  lat: true,
+                  lng: true,
+                  features: true,
+                  imageUrl: true,
+                  isForRent: true,
+                },
+              });
+
+              console.log(`searchProperties: found ${properties.length} candidates`);
+
+              if (!properties.length) {
+                return { error: 'No properties found matching your criteria' };
+              }
+
+              const scored = properties.map((p: any) =>
+                calculateSuitabilityScore(p, mergedProfile)
+              );
+
+              return scored
+                .sort((a: any, b: any) => b.score - a.score)
+                .slice(0, limit);
+
             } catch (dbErr: any) {
-              console.error("DB error in searchProperties:", dbErr?.message);
-              return { error: 'Could not fetch properties' };
+              console.error("DB error in searchProperties:", dbErr?.message, dbErr?.stack);
+              return { error: 'Could not fetch properties. Please try again.' };
             }
           },
         }),

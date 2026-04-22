@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { UserProfile, PropertyMatch } from '@/lib/scoring';
-import { Loader2, Send } from 'lucide-react';
+import { Loader2, Send, Bed, Bath, MapPin, Tag } from 'lucide-react';
 import BudgetWidget from './widgets/BudgetWidget';
 
 export default function ChatInterface() {
@@ -38,7 +38,6 @@ export default function ChatInterface() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
 
-  // Auto-resize textarea as user types
   useEffect(() => {
     const ta = textareaRef.current;
     if (!ta) return;
@@ -50,6 +49,67 @@ export default function ChatInterface() {
     setProfile(prev => ({ ...prev, budget: value }));
     addToolResult({ toolCallId, result: { budget: value, success: true } });
   };
+
+  const renderPropertyCard = (prop: PropertyMatch) => (
+    <Card key={prop.id} className="overflow-hidden border shadow-sm">
+      {/* Image */}
+      {prop.imageUrl && (
+        <img
+          src={prop.imageUrl}
+          alt={prop.title}
+          className="w-full h-32 object-cover"
+        />
+      )}
+
+      <div className="p-3">
+        {/* Title + match badge */}
+        <div className="flex items-start justify-between gap-2">
+          <h3 className="font-semibold text-sm leading-tight">{prop.title}</h3>
+          <span className={`shrink-0 text-xs font-bold px-2 py-0.5 rounded-full ${
+            prop.score >= 70
+              ? 'bg-green-100 text-green-700'
+              : prop.score >= 50
+              ? 'bg-yellow-100 text-yellow-700'
+              : 'bg-red-100 text-red-600'
+          }`}>
+            {prop.score}% match
+          </span>
+        </div>
+
+        {/* Location + type */}
+        <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <MapPin className="h-3 w-3" />
+            {prop.location}
+          </span>
+          <span className="flex items-center gap-1">
+            <Tag className="h-3 w-3" />
+            {prop.propertyType}
+          </span>
+        </div>
+
+        {/* Beds + baths */}
+        <div className="mt-1.5 flex items-center gap-3 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <Bed className="h-3 w-3" />
+            {prop.bedrooms} bed{prop.bedrooms !== 1 ? 's' : ''}
+          </span>
+          <span className="flex items-center gap-1">
+            <Bath className="h-3 w-3" />
+            {prop.bathrooms} bath{prop.bathrooms !== 1 ? 's' : ''}
+          </span>
+          <span className="ml-auto text-xs font-semibold text-foreground">
+            R{prop.price.toLocaleString()}{prop.isForRent ? '/mo' : ''}
+          </span>
+        </div>
+
+        {/* Explanation */}
+        <p className="mt-2 text-[10px] leading-snug text-muted-foreground italic">
+          {prop.explanation}
+        </p>
+      </div>
+    </Card>
+  );
 
   const renderToolInvocations = (toolInvocations: any[], inBubble = false) => {
     return toolInvocations.map((toolInvocation) => {
@@ -67,23 +127,23 @@ export default function ChatInterface() {
       }
 
       if (toolName === 'searchProperties' && state === 'result') {
-        const results = toolInvocation.result as PropertyMatch[];
+        const result = toolInvocation.result;
+
+        // Handle error object returned from execute
+        if (result?.error) {
+          return (
+            <div key={toolCallId} className="mt-2 text-sm text-red-500">
+              {result.error}
+            </div>
+          );
+        }
+
+        const results = result as PropertyMatch[];
         if (!Array.isArray(results) || !results.length) return null;
+
         return (
           <div key={toolCallId} className={`grid grid-cols-1 gap-3 ${inBubble ? 'mt-4' : ''}`}>
-            {results.map((prop) => (
-              <Card key={prop.id} className="p-3 border-l-4 border-l-green-500">
-                <h3 className="font-bold text-sm">{prop.title}</h3>
-                <p className="text-xs text-muted-foreground">R{prop.price.toLocaleString()}</p>
-                <div className="mt-2 flex justify-between items-center">
-                  <span className="text-xs font-bold px-2 py-1 bg-green-100 text-green-700 rounded">
-                    {prop.score}% Match
-                  </span>
-                  <Button variant="outline" size="sm" className="h-7 text-xs">View Details</Button>
-                </div>
-                <p className="mt-2 text-[10px] leading-tight italic">{prop.explanation}</p>
-              </Card>
-            ))}
+            {results.map(renderPropertyCard)}
           </div>
         );
       }
@@ -101,7 +161,9 @@ export default function ChatInterface() {
           <p className="text-xs text-muted-foreground">South Africa&apos;s Smart Real Estate Assistant</p>
         </div>
         <div className="text-right">
-          <p className="text-xs font-medium">Budget: R{profile.budget.toLocaleString()}</p>
+          <p className="text-xs font-medium">
+            {profile.budget > 0 ? `R${profile.budget.toLocaleString()}` : 'Budget not set'}
+          </p>
           <p className="text-xs text-muted-foreground">{profile.isBuying ? 'Buying' : 'Renting'}</p>
         </div>
       </div>
@@ -118,7 +180,7 @@ export default function ChatInterface() {
             if (m.role === 'assistant' && !hasText && hasTools) {
               return (
                 <div key={m.id} className="flex justify-start">
-                  <div className="max-w-[85%]">
+                  <div className="max-w-[90%] w-full">
                     {renderToolInvocations(m.toolInvocations!, false)}
                   </div>
                 </div>
@@ -178,7 +240,7 @@ export default function ChatInterface() {
         </div>
       </div>
 
-      {/* Input — textarea + send button stacked */}
+      {/* Input */}
       <form onSubmit={handleSubmit} className="p-4 border-t flex flex-col gap-2 shrink-0 bg-background">
         <textarea
           ref={textareaRef}
@@ -189,11 +251,7 @@ export default function ChatInterface() {
           rows={3}
           className="w-full resize-none rounded-lg border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50 overflow-hidden"
         />
-        <Button
-          type="submit"
-          disabled={isLoading || !input.trim()}
-          className="w-full"
-        >
+        <Button type="submit" disabled={isLoading || !input.trim()} className="w-full">
           {isLoading
             ? <Loader2 className="h-4 w-4 animate-spin mr-2" />
             : <Send className="h-4 w-4 mr-2" />}
