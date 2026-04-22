@@ -51,16 +51,6 @@ export default function ChatInterface() {
     addToolResult({ toolCallId, result: { budget: value, success: true } });
   };
 
-  // Submit on Enter, new line on Shift+Enter
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      if (!isLoading && input.trim()) {
-        handleSubmit(e as any);
-      }
-    }
-  };
-
   const renderToolInvocations = (toolInvocations: any[], inBubble = false) => {
     return toolInvocations.map((toolInvocation) => {
       const { toolName, toolCallId, state } = toolInvocation;
@@ -194,8 +184,7 @@ export default function ChatInterface() {
           ref={textareaRef}
           value={input}
           onChange={handleInputChange}
-          onKeyDown={handleKeyDown}
-          placeholder="Type your message… (Shift+Enter for new line)"
+          placeholder="Type your message…"
           disabled={isLoading}
           rows={3}
           className="w-full resize-none rounded-lg border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50 overflow-hidden"
