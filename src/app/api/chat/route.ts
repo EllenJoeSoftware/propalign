@@ -58,7 +58,7 @@ Guide the conversation to collect:
 6. Lifestyle preferences (near schools, public transport, pet friendly, etc.)
 
 Use the updateProfile tool whenever the user provides any profile information.
-Use the askForBudget tool when asking about their budget.
+Use the askForBudget tool when asking about their budget — do NOT ask for budget as plain text.
 Use the searchProperties tool once you have enough info to show matches.`,
       tools: {
         updateProfile: tool({
@@ -75,11 +75,15 @@ Use the searchProperties tool once you have enough info to show matches.`,
             return { success: true, updatedFields: Object.keys(params) };
           },
         }),
+
+        // No execute = client-side tool. Stays in 'call' state until addToolResult is called.
         askForBudget: tool({
-          description: 'Show an interactive budget slider widget to the user',
-          parameters: z.object({ initialValue: z.number().optional() }),
-          execute: async () => ({ success: true }),
+          description: 'Show an interactive budget slider widget so the user can select their budget',
+          parameters: z.object({
+            initialValue: z.number().optional().describe('Starting value for the slider in ZAR'),
+          }),
         }),
+
         searchProperties: tool({
           description: 'Search and score properties based on the current user profile',
           parameters: z.object({ limit: z.number().default(5) }),
