@@ -1,39 +1,37 @@
-import { PrismaClient } from '@prisma/client'
-import { PrismaMariaDb } from '@prisma/adapter-mariadb'
-import * as mariadb from 'mariadb'
+import { PrismaClient } from '@prisma/client';
+import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 
 const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient
-  mariaPool: mariadb.Pool
+  prisma?: PrismaClient;
+};
+
+function buildClient(): PrismaClient {
+  const rawUrl = process.env.DATABASE_URL;
+  if (!rawUrl) {
+    throw new Error('DATABASE_URL is not set');
+  }
+
+  // Normalize the scheme so the mariadb client recognizes it.
+  const normalizedUrl = rawUrl.replace(/^mysql:\/\//, 'mariadb://');
+
+  // PrismaMariaDb is a factory that takes a mariadb PoolConfig or a
+  // connection string. The string form decodes the password correctly even
+  // when it contains URL-encoded reserved characters like "%40".
+  const adapter = new PrismaMariaDb(normalizedUrl);
+
+  return new PrismaClient({
+    adapter,
+    log:
+      process.env.NODE_ENV === 'development'
+        ? ['error', 'warn']
+        : ['error'],
+  });
 }
 
-function getPool(): mariadb.Pool {
-  if (globalForPrisma.mariaPool) return globalForPrisma.mariaPool
+const prisma = globalForPrisma.prisma ?? buildClient();
 
-  const rawUrl = process.env.DATABASE_URL!
-  const normalizedUrl = rawUrl.replace(/^mysql:\/\//, 'mariadb://')
-
-  const pool = mariadb.createPool({
-    uri: normalizedUrl,
-    connectionLimit: 5,       // keep small for serverless
-    acquireTimeout: 10000,
-    connectTimeout: 10000,
-    idleTimeout: 30000,
-    resetAfterUse: false,
-  })
-
-  globalForPrisma.mariaPool = pool
-  return pool
+if (process.env.NODE_ENV !== 'production') {
+  globalForPrisma.prisma = prisma;
 }
 
-function createPrismaClient(): PrismaClient {
-  const pool = getPool()
-  const adapter = new PrismaMariaDb(pool)
-  return new PrismaClient({ adapter })
-}
-
-// Reuse across hot-reloads in dev and across invocations in prod
-const prisma = globalForPrisma.prisma ?? createPrismaClient()
-globalForPrisma.prisma = prisma
-
-export default prisma
+export default prisma;

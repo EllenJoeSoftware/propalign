@@ -1,35 +1,56 @@
 'use client';
 
 import { useChat } from '@ai-sdk/react';
-import { useState, useEffect, useRef } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { UserProfile, PropertyMatch } from '@/lib/scoring';
-import { Loader2, Send, Bed, Bath, MapPin, Tag } from 'lucide-react';
+import { useEffect, useRef } from 'react';
+import {
+  UserProfile,
+  LifeStage,
+  Priority,
+  SocialDensity,
+  AestheticEra,
+  SecurityTier,
+} from '@/lib/scoring';
+import { Loader2, ArrowUp, RotateCcw } from 'lucide-react';
 import BudgetWidget from './widgets/BudgetWidget';
+import IncomeWidget from './widgets/IncomeWidget';
+import LocationWidget from './widgets/LocationWidget';
+import LifeStageWidget from './widgets/LifeStageWidget';
+import TradeoffsWidget from './widgets/TradeoffsWidget';
+import VibeProxiesWidget from './widgets/VibeProxiesWidget';
+import BedroomsWidget from './widgets/BedroomsWidget';
 
-export default function ChatInterface() {
-  const [profile, setProfile] = useState<UserProfile>({
-    netIncome: 0,
-    budget: 0,
-    isBuying: false,
-    schoolLocations: [],
-    transportMode: 'car',
-    minBedrooms: 1,
-    lifestylePreferences: [],
-  });
+interface ChatInterfaceProps {
+  profile: UserProfile;
+  setProfile: React.Dispatch<React.SetStateAction<UserProfile>>;
+  onReset?: () => void;
+}
+
+export default function ChatInterface({
+  profile,
+  setProfile,
+  onReset,
+}: ChatInterfaceProps) {
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const { messages, input, handleInputChange, handleSubmit, isLoading, addToolResult, append } = useChat({
+  const {
+    messages,
+    input,
+    handleInputChange,
+    handleSubmit,
+    isLoading,
+    addToolResult,
+    append,
+  } = useChat({
     api: '/api/chat',
     body: { profile },
     initialMessages: [
       {
         id: 'initial-greeting',
         role: 'assistant',
-        content: "Hi! I'm PropAlign AI. I'll help you find the perfect home in South Africa. Are you looking to rent or buy?",
+        content:
+          "Hello. I help you find the right home in South Africa — rent or buy. Which would you like to do?",
       },
     ],
   });
@@ -42,85 +63,156 @@ export default function ChatInterface() {
     const ta = textareaRef.current;
     if (!ta) return;
     ta.style.height = 'auto';
-    ta.style.height = `${ta.scrollHeight}px`;
+    ta.style.height = ta.scrollHeight + 'px';
   }, [input]);
 
   const handleBudgetConfirm = (value: number, toolCallId: string) => {
-    setProfile(prev => ({ ...prev, budget: value }));
+    setProfile((prev) => ({ ...prev, budget: value }));
     addToolResult({ toolCallId, result: { budget: value, success: true } });
   };
 
-  const renderPropertyCard = (prop: PropertyMatch) => (
-    <Card key={prop.id} className="overflow-hidden border shadow-sm">
-      {/* Image */}
-      {prop.imageUrl && (
-        <img
-          src={prop.imageUrl}
-          alt={prop.title}
-          className="w-full h-32 object-cover"
-        />
-      )}
+  const handleIncomeConfirm = (value: number, toolCallId: string) => {
+    setProfile((prev) => ({ ...prev, netIncome: value }));
+    addToolResult({ toolCallId, result: { netIncome: value, success: true } });
+  };
 
-      <div className="p-3">
-        {/* Title + match badge */}
-        <div className="flex items-start justify-between gap-2">
-          <h3 className="font-semibold text-sm leading-tight">{prop.title}</h3>
-          <span className={`shrink-0 text-xs font-bold px-2 py-0.5 rounded-full ${
-            prop.score >= 70
-              ? 'bg-green-100 text-green-700'
-              : prop.score >= 50
-              ? 'bg-yellow-100 text-yellow-700'
-              : 'bg-red-100 text-red-600'
-          }`}>
-            {prop.score}% match
-          </span>
-        </div>
+  const handleLocationConfirm = (
+    selection: { provinces: string[]; suburbs: string[] },
+    toolCallId: string,
+  ) => {
+    setProfile((prev) => ({
+      ...prev,
+      provinces: selection.provinces,
+      suburbs: selection.suburbs,
+    }));
+    addToolResult({
+      toolCallId,
+      result: {
+        provinces: selection.provinces,
+        suburbs: selection.suburbs,
+        success: true,
+      },
+    });
+  };
 
-        {/* Location + type */}
-        <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1">
-            <MapPin className="h-3 w-3" />
-            {prop.location}
-          </span>
-          <span className="flex items-center gap-1">
-            <Tag className="h-3 w-3" />
-            {prop.propertyType}
-          </span>
-        </div>
+  const handleLifeStageConfirm = (stage: LifeStage, toolCallId: string) => {
+    setProfile((prev) => ({ ...prev, lifeStage: stage }));
+    addToolResult({
+      toolCallId,
+      result: { lifeStage: stage, success: true },
+    });
+  };
 
-        {/* Beds + baths */}
-        <div className="mt-1.5 flex items-center gap-3 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1">
-            <Bed className="h-3 w-3" />
-            {prop.bedrooms} bed{prop.bedrooms !== 1 ? 's' : ''}
-          </span>
-          <span className="flex items-center gap-1">
-            <Bath className="h-3 w-3" />
-            {prop.bathrooms} bath{prop.bathrooms !== 1 ? 's' : ''}
-          </span>
-          <span className="ml-auto text-xs font-semibold text-foreground">
-            R{prop.price.toLocaleString()}{prop.isForRent ? '/mo' : ''}
-          </span>
-        </div>
+  const handleTradeoffsConfirm = (picks: Priority[], toolCallId: string) => {
+    setProfile((prev) => ({ ...prev, topPriorities: picks }));
+    addToolResult({
+      toolCallId,
+      result: { topPriorities: picks, success: true },
+    });
+  };
 
-        {/* Explanation */}
-        <p className="mt-2 text-[10px] leading-snug text-muted-foreground italic">
-          {prop.explanation}
-        </p>
-      </div>
-    </Card>
-  );
+  const handleVibesConfirm = (
+    vibes: {
+      socialDensityPref: SocialDensity;
+      aestheticEra: AestheticEra;
+      securityTier: SecurityTier;
+    },
+    toolCallId: string,
+  ) => {
+    setProfile((prev) => ({
+      ...prev,
+      socialDensityPref: vibes.socialDensityPref,
+      aestheticEra: vibes.aestheticEra,
+      securityTier: vibes.securityTier,
+    }));
+    addToolResult({
+      toolCallId,
+      result: { ...vibes, success: true },
+    });
+  };
+
+  const handleBedroomsConfirm = (count: number, toolCallId: string) => {
+    setProfile((prev) => ({ ...prev, minBedrooms: count }));
+    addToolResult({
+      toolCallId,
+      result: { minBedrooms: count, success: true },
+    });
+  };
 
   const renderToolInvocations = (toolInvocations: any[], inBubble = false) => {
     return toolInvocations.map((toolInvocation) => {
       const { toolName, toolCallId, state } = toolInvocation;
+
+      if (toolName === 'askForIncome' && state === 'call') {
+        return (
+          <div key={toolCallId} className={inBubble ? 'mt-3' : ''}>
+            <IncomeWidget
+              initialValue={(toolInvocation.args as any).initialValue}
+              onConfirm={(val) => handleIncomeConfirm(val, toolCallId)}
+            />
+          </div>
+        );
+      }
 
       if (toolName === 'askForBudget' && state === 'call') {
         return (
           <div key={toolCallId} className={inBubble ? 'mt-3' : ''}>
             <BudgetWidget
               initialValue={(toolInvocation.args as any).initialValue}
+              netIncome={profile.netIncome}
               onConfirm={(val) => handleBudgetConfirm(val, toolCallId)}
+            />
+          </div>
+        );
+      }
+
+      if (toolName === 'askLifeStage' && state === 'call') {
+        return (
+          <div key={toolCallId} className={inBubble ? 'mt-3' : ''}>
+            <LifeStageWidget
+              onConfirm={(s) => handleLifeStageConfirm(s, toolCallId)}
+            />
+          </div>
+        );
+      }
+
+      if (toolName === 'askTopTwoTradeoffs' && state === 'call') {
+        return (
+          <div key={toolCallId} className={inBubble ? 'mt-3' : ''}>
+            <TradeoffsWidget
+              showSchools={(toolInvocation.args as any).showSchools ?? false}
+              onConfirm={(p) => handleTradeoffsConfirm(p, toolCallId)}
+            />
+          </div>
+        );
+      }
+
+      if (toolName === 'askVibeProxies' && state === 'call') {
+        return (
+          <div key={toolCallId} className={inBubble ? 'mt-3' : ''}>
+            <VibeProxiesWidget
+              onConfirm={(v) => handleVibesConfirm(v, toolCallId)}
+            />
+          </div>
+        );
+      }
+
+      if (toolName === 'askForLocation' && state === 'call') {
+        return (
+          <div key={toolCallId} className={inBubble ? 'mt-3' : ''}>
+            <LocationWidget
+              onConfirm={(sel) => handleLocationConfirm(sel, toolCallId)}
+            />
+          </div>
+        );
+      }
+
+      if (toolName === 'askForBedrooms' && state === 'call') {
+        return (
+          <div key={toolCallId} className={inBubble ? 'mt-3' : ''}>
+            <BedroomsWidget
+              initialValue={profile.minBedrooms}
+              onConfirm={(n) => handleBedroomsConfirm(n, toolCallId)}
             />
           </div>
         );
@@ -128,23 +220,28 @@ export default function ChatInterface() {
 
       if (toolName === 'searchProperties' && state === 'result') {
         const result = toolInvocation.result;
-
-        // Handle error object returned from execute
         if (result?.error) {
           return (
-            <div key={toolCallId} className="mt-2 text-sm text-red-500">
+            <div
+              key={toolCallId}
+              className="mt-2 rounded-[6px] border border-[var(--line)] bg-[var(--paper-3)] px-3 py-2 text-[12px] text-[var(--danger)]"
+            >
               {result.error}
             </div>
           );
         }
-
-        const results = result as PropertyMatch[];
-        if (!Array.isArray(results) || !results.length) return null;
-
+        const results = Array.isArray(result) ? result : [];
         return (
-          <div key={toolCallId} className={`grid grid-cols-1 gap-3 ${inBubble ? 'mt-4' : ''}`}>
-            {results.map(renderPropertyCard)}
-          </div>
+          <p
+            key={toolCallId}
+            className={
+              'text-[11px] text-[var(--ink-3)] italic ' +
+              (inBubble ? 'mt-2' : '')
+            }
+          >
+            Updated — {results.length} fresh match
+            {results.length === 1 ? '' : 'es'} on the right.
+          </p>
         );
       }
 
@@ -153,23 +250,58 @@ export default function ChatInterface() {
   };
 
   return (
-    <div className="flex flex-col h-screen w-full max-w-2xl mx-auto border-x bg-background">
-      {/* Header */}
-      <div className="p-4 border-b bg-muted/50 flex justify-between items-center shrink-0">
-        <div>
-          <h2 className="text-lg font-semibold">PropAlign AI</h2>
-          <p className="text-xs text-muted-foreground">South Africa&apos;s Smart Real Estate Assistant</p>
+    <div className="flex flex-col h-full w-full bg-[var(--paper)]">
+      {/* Header — flat paper, single hairline */}
+      <header className="shrink-0 border-b border-[var(--line)] px-6 pt-5 pb-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="h-9 w-9 rounded-[7px] bg-[var(--accent-color)] flex items-center justify-center">
+            <span className="font-editorial text-[15px] font-medium text-white leading-none">
+              P
+            </span>
+          </div>
+          <div className="leading-tight">
+            <h2 className="font-editorial text-[18px] font-medium tracking-[-0.01em] text-[var(--ink)]">
+              PropAlign
+            </h2>
+            <p className="text-[10px] uppercase tracking-[0.12em] text-[var(--ink-3)] font-medium">
+              South African Concierge
+            </p>
+          </div>
         </div>
-        <div className="text-right">
-          <p className="text-xs font-medium">
-            {profile.budget > 0 ? `R${profile.budget.toLocaleString()}` : 'Budget not set'}
-          </p>
-          <p className="text-xs text-muted-foreground">{profile.isBuying ? 'Buying' : 'Renting'}</p>
+
+        <div className="flex items-center gap-3">
+          <div className="hidden sm:flex items-center gap-2 font-data text-[12px]">
+            <span className="text-[var(--ink-3)]">
+              {profile.isBuying ? 'Buying' : 'Renting'}
+            </span>
+            {profile.budget > 0 && (
+              <>
+                <span className="text-[var(--ink-4)]">·</span>
+                <span className="text-[var(--ink)] font-medium">
+                  R{profile.budget.toLocaleString('en-ZA')}
+                  {!profile.isBuying && (
+                    <span className="text-[var(--ink-3)] font-normal">/mo</span>
+                  )}
+                </span>
+              </>
+            )}
+          </div>
+          {onReset && (
+            <button
+              type="button"
+              onClick={onReset}
+              className="focus-ring inline-flex items-center gap-1 h-8 px-2.5 rounded-[6px] border border-[var(--line)] bg-[var(--paper-2)] hover:border-[var(--line-strong)] text-[11px] font-medium text-[var(--ink-2)] transition-colors"
+              title="Reset profile and start a new conversation"
+            >
+              <RotateCcw className="h-3 w-3" strokeWidth={2} />
+              Start over
+            </button>
+          )}
         </div>
-      </div>
+      </header>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto scrollbar-thin px-6 py-6">
         <div className="space-y-4">
           {messages.map((m) => {
             const hasText = m.content && m.content.trim().length > 0;
@@ -180,44 +312,55 @@ export default function ChatInterface() {
             if (m.role === 'assistant' && !hasText && hasTools) {
               return (
                 <div key={m.id} className="flex justify-start">
-                  <div className="max-w-[90%] w-full">
+                  <div className="max-w-[92%] w-full">
                     {renderToolInvocations(m.toolInvocations!, false)}
                   </div>
                 </div>
               );
             }
 
+            const isUser = m.role === 'user';
+
             return (
-              <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div
+                key={m.id}
+                className={`flex ${isUser ? 'justify-end' : 'justify-start'} gap-2 items-start`}
+              >
+                {!isUser && (
+                  <div className="h-6 w-6 mt-1 shrink-0 rounded-full bg-[var(--accent-color)] flex items-center justify-center">
+                    <span className="font-data text-[10px] font-semibold text-white">
+                      P
+                    </span>
+                  </div>
+                )}
+
                 <div
-                  className={`max-w-[85%] rounded-2xl px-4 py-3 ${
-                    m.role === 'user'
-                      ? 'bg-primary text-primary-foreground rounded-br-sm'
-                      : 'bg-muted border shadow-sm rounded-bl-sm'
-                  }`}
+                  className={
+                    isUser
+                      ? 'max-w-[80%] rounded-[10px] rounded-br-[4px] bg-[var(--accent-color)] text-white px-4 py-2.5 text-[14px] leading-relaxed'
+                      : 'max-w-[82%] rounded-[10px] rounded-bl-[4px] border border-[var(--line)] bg-[var(--paper-2)] text-[var(--ink)] px-4 py-2.5 text-[14px] leading-relaxed'
+                  }
                 >
-                  {hasText && (
-                    <p className="text-sm whitespace-pre-wrap leading-relaxed">{m.content}</p>
-                  )}
+                  {hasText && <p className="whitespace-pre-wrap">{m.content}</p>}
 
                   {m.id === 'initial-greeting' && (
                     <div className="mt-3 flex gap-2">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        className="h-7 text-xs"
-                        onClick={() => append({ role: 'user', content: 'I want to Rent' })}
+                      <button
+                        onClick={() =>
+                          append({ role: 'user', content: 'I want to Rent' })
+                        }
+                        className="focus-ring h-9 px-4 rounded-[6px] border border-[var(--line)] bg-[var(--paper-2)] hover:border-[var(--line-strong)] text-[12px] font-medium text-[var(--ink)] transition-colors"
                       >
                         Rent
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        className="h-7 text-xs"
-                        onClick={() => append({ role: 'user', content: 'I want to Buy' })}
+                      </button>
+                      <button
+                        onClick={() =>
+                          append({ role: 'user', content: 'I want to Buy' })
+                        }
+                        className="focus-ring h-9 px-4 rounded-[6px] bg-[var(--accent-color)] hover:opacity-90 text-[12px] font-medium text-white transition-opacity"
                       >
                         Buy
-                      </Button>
+                      </button>
                     </div>
                   )}
 
@@ -228,10 +371,17 @@ export default function ChatInterface() {
           })}
 
           {isLoading && (
-            <div className="flex justify-start">
-              <div className="bg-muted border rounded-2xl rounded-bl-sm px-4 py-3 flex items-center space-x-2">
-                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">PropAlign is thinking…</span>
+            <div className="flex justify-start gap-2 items-start">
+              <div className="h-6 w-6 mt-1 shrink-0 rounded-full bg-[var(--accent-color)] flex items-center justify-center">
+                <span className="font-data text-[10px] font-semibold text-white">
+                  P
+                </span>
+              </div>
+              <div className="border border-[var(--line)] bg-[var(--paper-2)] rounded-[10px] rounded-bl-[4px] px-4 py-2.5 flex items-center gap-2">
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-[var(--ink-3)]" />
+                <span className="text-[12px] text-[var(--ink-3)]">
+                  Thinking
+                </span>
               </div>
             </div>
           )}
@@ -241,22 +391,39 @@ export default function ChatInterface() {
       </div>
 
       {/* Input */}
-      <form onSubmit={handleSubmit} className="p-4 border-t flex flex-col gap-2 shrink-0 bg-background">
-        <textarea
-          ref={textareaRef}
-          value={input}
-          onChange={handleInputChange}
-          placeholder="Type your message…"
-          disabled={isLoading}
-          rows={3}
-          className="w-full resize-none rounded-lg border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50 overflow-hidden"
-        />
-        <Button type="submit" disabled={isLoading || !input.trim()} className="w-full">
-          {isLoading
-            ? <Loader2 className="h-4 w-4 animate-spin mr-2" />
-            : <Send className="h-4 w-4 mr-2" />}
-          Send
-        </Button>
+      <form
+        onSubmit={handleSubmit}
+        className="shrink-0 border-t border-[var(--line)] px-6 py-4"
+      >
+        <div className="flex items-end gap-2 rounded-[8px] border border-[var(--line)] bg-[var(--paper-2)] focus-within:border-[var(--line-strong)] focus-within:shadow-[0_0_0_3px_rgba(30,58,95,0.10)] transition-all">
+          <textarea
+            ref={textareaRef}
+            value={input}
+            onChange={handleInputChange}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey && input.trim()) {
+                e.preventDefault();
+                handleSubmit(e as any);
+              }
+            }}
+            placeholder="Type a message…"
+            disabled={isLoading}
+            rows={1}
+            className="flex-1 resize-none bg-transparent px-4 py-3 text-[14px] text-[var(--ink)] placeholder:text-[var(--ink-4)] focus:outline-none disabled:opacity-50 max-h-32"
+          />
+          <button
+            type="submit"
+            disabled={isLoading || !input.trim()}
+            className="m-1.5 h-8 w-8 shrink-0 rounded-[6px] bg-[var(--accent-color)] flex items-center justify-center text-white transition-opacity hover:opacity-90 disabled:bg-[var(--ink-4)] disabled:cursor-not-allowed"
+            aria-label="Send"
+          >
+            {isLoading ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <ArrowUp className="h-3.5 w-3.5" strokeWidth={2.5} />
+            )}
+          </button>
+        </div>
       </form>
     </div>
   );

@@ -2,43 +2,37 @@
 
 import * as SliderPrimitive from '@radix-ui/react-slider';
 import { useState } from 'react';
-import { AlertTriangle } from 'lucide-react';
 
-interface BudgetWidgetProps {
+interface IncomeWidgetProps {
   onConfirm: (value: number) => void;
   initialValue?: number;
-  /** If known, used to flag when user pushes >30% of net income. */
-  netIncome?: number;
 }
 
-const MIN = 2000;
-const MAX = 50000;
-const STEP = 500;
+const MIN = 3000;
+const MAX = 150000;
+const STEP = 1000;
 
-export default function BudgetWidget({
+export default function IncomeWidget({
   onConfirm,
   initialValue,
-  netIncome,
-}: BudgetWidgetProps) {
+}: IncomeWidgetProps) {
   const start =
     typeof initialValue === 'number' && initialValue >= MIN
       ? initialValue
-      : 10000;
+      : 20000;
   const [value, setValue] = useState<number>(start);
 
-  // Stutzer & Frey + SA financial-advisor guideline: keep housing ≤ 30% of net.
-  const stretchPct =
-    netIncome && netIncome > 0 ? value / netIncome : null;
-  const overStretched = stretchPct !== null && stretchPct > 0.30;
+  // 30% rule — common SA financial advisor guideline
+  const recommendedBudget = Math.round((value * 0.3) / 500) * 500;
 
   return (
     <div className="w-80 max-w-full rounded-[10px] border border-[var(--line)] bg-[var(--paper-2)] overflow-hidden">
       <div className="px-4 py-3 border-b border-[var(--line-soft)]">
         <p className="text-[11px] uppercase tracking-[0.08em] text-[var(--ink-3)]">
-          Monthly Budget
+          Monthly Net Income
         </p>
         <p className="mt-0.5 text-[12px] text-[var(--ink-3)]">
-          What can you comfortably spend each month?
+          After tax — used to size a healthy housing budget.
         </p>
       </div>
 
@@ -48,9 +42,7 @@ export default function BudgetWidget({
             R{value.toLocaleString('en-ZA')}
           </p>
           <p className="mt-1 text-[11px] text-[var(--ink-3)]">
-            {stretchPct !== null
-              ? `${Math.round(stretchPct * 100)}% of your net income`
-              : 'per month'}
+            ≈ R{recommendedBudget.toLocaleString('en-ZA')} suggested housing budget (30%)
           </p>
         </div>
 
@@ -67,21 +59,11 @@ export default function BudgetWidget({
           }}
         >
           <SliderPrimitive.Track className="bg-[var(--paper-3)] relative grow rounded-full h-1">
-            <SliderPrimitive.Range
-              className={
-                'absolute rounded-full h-full ' +
-                (overStretched ? 'bg-[var(--warn)]' : 'bg-[var(--accent-color)]')
-              }
-            />
+            <SliderPrimitive.Range className="absolute bg-[var(--accent-color)] rounded-full h-full" />
           </SliderPrimitive.Track>
           <SliderPrimitive.Thumb
-            className={
-              'block h-3.5 w-3.5 bg-[var(--paper-2)] rounded-full border-[1.5px] focus:outline-none focus-visible:shadow-[0_0_0_3px_rgba(30,58,95,0.18)] cursor-grab active:cursor-grabbing transition-colors ' +
-              (overStretched
-                ? 'border-[var(--warn)]'
-                : 'border-[var(--accent-color)]')
-            }
-            aria-label="Budget"
+            className="block h-3.5 w-3.5 bg-[var(--paper-2)] rounded-full border-[1.5px] border-[var(--accent-color)] focus:outline-none focus-visible:shadow-[0_0_0_3px_rgba(30,58,95,0.18)] cursor-grab active:cursor-grabbing"
+            aria-label="Monthly net income"
           />
         </SliderPrimitive.Root>
 
@@ -89,19 +71,6 @@ export default function BudgetWidget({
           <span>R{MIN.toLocaleString('en-ZA')}</span>
           <span>R{MAX.toLocaleString('en-ZA')}+</span>
         </div>
-
-        {overStretched && (
-          <div className="flex items-start gap-2 px-3 py-2 rounded-[6px] border border-[var(--line)] bg-[var(--paper-3)]">
-            <AlertTriangle
-              className="h-3.5 w-3.5 mt-0.5 shrink-0 text-[var(--warn)]"
-              strokeWidth={2}
-            />
-            <p className="text-[11px] leading-snug text-[var(--ink-2)]">
-              Most South Africans aim for ≤<span className="font-data">30%</span> of
-              net income on housing. You can still confirm this — just a heads-up.
-            </p>
-          </div>
-        )}
 
         <button
           onClick={() => onConfirm(value)}

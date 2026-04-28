@@ -1,31 +1,31 @@
 import { NextResponse } from 'next/server';
-import * as mariadb from 'mariadb';
+import { ping } from '@/lib/properties-repo';
 
+/**
+ * Health check for the Firestore connection. Returns the document count of
+ * the `properties` collection (capped at 1) and the title of the first row,
+ * so we know auth + reads are working without dumping the whole table.
+ */
 export async function GET() {
-  const rawUrl = process.env.DATABASE_URL;
-
-  if (!rawUrl) {
-    return NextResponse.json({ error: 'DATABASE_URL is not set' }, { status: 500 });
-  }
-
-  // Redact password for logging
-  const redacted = rawUrl.replace(/:([^:@]+)@/, ':****@');
-  console.log('DATABASE_URL (redacted):', redacted);
-
-  let conn: mariadb.Connection | null = null;
   try {
-    const normalizedUrl = rawUrl.replace(/^mysql:\/\//, 'mariadb://');
-    conn = await mariadb.createConnection({ uri: normalizedUrl, connectTimeout: 8000 });
-    const rows = await conn.query('SELECT 1 AS ok');
-    return NextResponse.json({ status: 'connected', url: redacted, result: rows });
-  } catch (err: any) {
+    const result = await ping();
     return NextResponse.json({
-      error: err.message,
-      code: err.code,
-      errno: err.errno,
-      url: redacted,
-    }, { status: 500 });
-  } finally {
-    if (conn) await conn.end().catch(() => {});
+      status: 'connected',
+      backend: 'firestore',
+      collection: 'properties',
+      sampleCount: result.count,
+      sampleTitle: result.sample ?? null,
+    });
+  } catch (err: any) {
+    return NextResponse.json(
+      {
+        status: 'error',
+        backend: 'firestore',
+        error: err?.message ?? String(err),
+        hint:
+          'Check FIREBASE_SERVICE_ACCOUNT_JSON (or FIREBASE_PROJECT_ID + FIREBASE_CLIENT_EMAIL + FIREBASE_PRIVATE_KEY) in .env. See docs/firebase-migration.md.',
+      },
+      { status: 500 },
+    );
   }
 }
