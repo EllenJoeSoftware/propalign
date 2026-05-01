@@ -32,7 +32,11 @@ import * as path from 'node:path';
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { SUBURBS_BY_PROVINCE, type Province } from '../src/lib/sa-suburbs';
-import { buildSearchTags, computeHasImage } from '../src/lib/property-tags';
+import {
+  buildSearchTags,
+  computeHasImage,
+  computeTrueMonthlyCostSync,
+} from '../src/lib/property-tags';
 
 // ----------------------------------------------------------------------------
 // Args
@@ -325,6 +329,11 @@ function normalize(raw: RawRecord) {
       location,
       propertyType,
       bedrooms,
+    }),
+    trueMonthlyCost: computeTrueMonthlyCostSync({
+      price: Number(raw.price ?? 0),
+      propertyType,
+      isForRent,
     }),
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),

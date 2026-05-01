@@ -70,3 +70,39 @@ export const tagSlug = slug;
 export function computeHasImage(imageUrl: unknown): boolean {
   return typeof imageUrl === 'string' && imageUrl.trim().length > 0;
 }
+
+/**
+ * The "true monthly cost" denormalized for sorting. For rent listings it's
+ * just the monthly rent; for buy listings it's bond + rates + levies +
+ * insurance based on the SA financial defaults. Stored on the doc so the
+ * search endpoint can sort efficiently without recomputing per request.
+ *
+ * Imports lazily to avoid circular module loads at top-level.
+ */
+export async function computeTrueMonthlyCost(opts: {
+  price: number;
+  propertyType: string;
+  isForRent: boolean;
+}): Promise<number> {
+  if (opts.isForRent) return Math.round(opts.price);
+  const { calculateOwnershipCost } = await import('./sa-financial');
+  return calculateOwnershipCost({
+    price: opts.price,
+    propertyType: opts.propertyType,
+  }).totalMonthly;
+}
+
+/** Sync version — for places where dynamic import is awkward. */
+export function computeTrueMonthlyCostSync(opts: {
+  price: number;
+  propertyType: string;
+  isForRent: boolean;
+}): number {
+  if (opts.isForRent) return Math.round(opts.price);
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { calculateOwnershipCost } = require('./sa-financial');
+  return calculateOwnershipCost({
+    price: opts.price,
+    propertyType: opts.propertyType,
+  }).totalMonthly;
+}

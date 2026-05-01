@@ -52,12 +52,21 @@ export async function POST(req: Request) {
   const page = Math.max(1, Number(body.page ?? 1));
   const pageSize = Math.min(50, Math.max(1, Number(body.pageSize ?? 10)));
   const cursor: string | null = body.cursor ?? null;
+  // Optional explicit sort override from the user. When unset, falls back to
+  // the auto choice below (suburb in browse, score in match mode).
+  const userSort: 'auto' | 'cost-asc' | 'cost-desc' = body.sortBy ?? 'auto';
 
-  // Score mode kicks in once we have a real preference signal.
+  // Score mode kicks in once we have a real preference signal — UNLESS the
+  // user has explicitly chosen to sort by cost, in which case cost wins.
   const hasSignal =
     !!profile.lifeStage ||
     (Array.isArray(profile.topPriorities) && profile.topPriorities.length > 0);
-  const sort: 'suburb' | 'score' = hasSignal ? 'score' : 'suburb';
+  const sort: 'suburb' | 'score' | 'cost-asc' | 'cost-desc' =
+    userSort === 'cost-asc' || userSort === 'cost-desc'
+      ? userSort
+      : hasSignal
+        ? 'score'
+        : 'suburb';
 
   const filters = {
     isBuying:
@@ -84,6 +93,7 @@ export async function POST(req: Request) {
     pageSize,
     cursor,
     sort,
+    userSort,
     // Score-mode-only inputs that change ranking
     lifeStage: profile.lifeStage,
     topPriorities: profile.topPriorities,
@@ -129,7 +139,7 @@ export async function POST(req: Request) {
       return NextResponse.json(payload);
     }
 
-    // ── SCORE MODE — wide fetch + in-memory rank + slice ─────────────────
+    // ── SCORE MODE / COST-SORT MODE — wide fetch + in-memory rank + slice ─
     const candidates = await findCandidates({
       ...filters,
       limit: SCORE_FETCH_CAP,
@@ -140,9 +150,29 @@ export async function POST(req: Request) {
     const safePage = Math.min(page, totalPages);
     const start = (safePage - 1) * pageSize;
 
-    const scored: PropertyMatch[] = candidates
-      .map((p) => calculateSuitabilityScore(p, profile))
-      .sort((a, b) => b.score - a.score);
+    let scored: PropertyMatch[] = candidates.map((p) =>
+      calculateSuitabilityScore(p, profile),
+    );
+
+    if (sort === 'cost-asc' || sort === 'cost-desc') {
+      // Sort by the denormalized trueMonthlyCost field on each row. We pull
+      // it from the candidate via a quick lookup (it's stored on the doc but
+      // not on PropertyMatch — fall back to price if missing on legacy docs).
+      const costLookup = new Map<string, number>(
+        candidates.map((c) => [
+          c.id,
+          // Prefer trueMonthlyCost if present on the row, else price.
+          (c as any).trueMonthlyCost ?? c.price,
+        ]),
+      );
+      scored = scored.sort((a, b) => {
+        const ca = costLookup.get(a.id) ?? a.price;
+        const cb = costLookup.get(b.id) ?? b.price;
+        return sort === 'cost-asc' ? ca - cb : cb - ca;
+      });
+    } else {
+      scored = scored.sort((a, b) => b.score - a.score);
+    }
 
     const slice = scored.slice(start, start + pageSize);
 

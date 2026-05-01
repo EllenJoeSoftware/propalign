@@ -10,7 +10,11 @@
 import 'dotenv/config';
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
-import { buildSearchTags, computeHasImage } from '../src/lib/property-tags';
+import {
+  buildSearchTags,
+  computeHasImage,
+  computeTrueMonthlyCostSync,
+} from '../src/lib/property-tags';
 
 const FORCE = process.argv.includes('--force');
 
@@ -55,7 +59,8 @@ async function main() {
       const hasTagsAlready =
         Array.isArray(v.searchTags) && v.searchTags.length > 0;
       const hasImageFlagAlready = typeof v.hasImage === 'boolean';
-      if (hasTagsAlready && hasImageFlagAlready && !FORCE) {
+      const hasCostAlready = typeof v.trueMonthlyCost === 'number';
+      if (hasTagsAlready && hasImageFlagAlready && hasCostAlready && !FORCE) {
         skipped++;
         continue;
       }
@@ -71,6 +76,13 @@ async function main() {
       }
       if (!hasImageFlagAlready || FORCE) {
         update.hasImage = computeHasImage(v.imageUrl);
+      }
+      if (!hasCostAlready || FORCE) {
+        update.trueMonthlyCost = computeTrueMonthlyCostSync({
+          price: Number(v.price ?? 0),
+          propertyType: v.propertyType ?? 'House',
+          isForRent: v.isForRent === true,
+        });
       }
       batch.update(doc.ref, update);
       inBatch++;

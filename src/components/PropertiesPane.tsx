@@ -33,13 +33,15 @@ interface PropertiesPaneProps {
   pageSize?: number;
 }
 
+type SortBy = 'auto' | 'cost-asc' | 'cost-desc';
+
 interface SearchResponse {
   results: PropertyMatch[];
   page: number;
   pageSize: number;
   totalPages: number;
   totalCount: number;
-  sort: 'suburb' | 'score';
+  sort: 'suburb' | 'score' | 'cost-asc' | 'cost-desc';
   /** Cursor for the next page (browse mode only; null otherwise). */
   nextCursor: string | null;
 }
@@ -71,11 +73,14 @@ export default function PropertiesPane({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [sortBy, setSortBy] = useState<SortBy>('auto');
   // Cursor stack for browse-mode pagination — held in a ref so updating it
   // doesn't trigger the fetch effect. Index N holds the cursor used to fetch
   // page N+1 (so cursorsRef.current[0] is always null = page 1).
   const cursorsRef = useRef<(string | null)[]>([null]);
   const reqIdRef = useRef(0);
+  // Scrollable body container — used to snap back to top when paging.
+  const listScrollRef = useRef<HTMLDivElement>(null);
 
   // Delta tracking — what changed between the previous result set and this one.
   const previousIdsRef = useRef<Set<string>>(new Set());
@@ -106,7 +111,16 @@ export default function PropertiesPane({
   useEffect(() => {
     setPage(1);
     cursorsRef.current = [null];
-  }, [filterKey]);
+  }, [filterKey, sortBy]);
+
+  // Snap the listings pane to the top whenever the user pages forward or
+  // backward. Without this the new page renders but the scroll position
+  // stays where it was, which feels broken on every click.
+  useEffect(() => {
+    const el = listScrollRef.current;
+    if (!el) return;
+    el.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [page]);
 
   useEffect(() => {
     const myId = ++reqIdRef.current;
@@ -118,7 +132,7 @@ export default function PropertiesPane({
         const res = await fetch('/api/properties/search', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ profile, page, pageSize, cursor }),
+          body: JSON.stringify({ profile, page, pageSize, cursor, sortBy }),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = (await res.json()) as SearchResponse;
@@ -162,7 +176,7 @@ export default function PropertiesPane({
       }
     }, 250);
     return () => clearTimeout(timer);
-  }, [profile, page, pageSize]);
+  }, [profile, page, pageSize, sortBy]);
 
   // Filter chips — each carries an optional `clear` callback so the user
   // can remove that constraint with a click. We only attach `clear` if
@@ -257,7 +271,11 @@ export default function PropertiesPane({
         <div className="flex items-baseline justify-between gap-3">
           <div>
             <p className="text-[10px] uppercase tracking-[0.12em] text-[var(--ink-3)] font-medium">
-              {sort === 'score' ? 'Curated Matches' : 'Browse the Catalogue'}
+              {sort === 'score'
+                ? 'Curated Matches'
+                : sort === 'cost-asc' || sort === 'cost-desc'
+                  ? 'Sorted by Cost'
+                  : 'Browse the Catalogue'}
             </p>
             <h2 className="mt-1 font-editorial text-[22px] font-medium tracking-[-0.015em] text-[var(--ink)] leading-tight inline-flex items-baseline gap-2 flex-wrap">
               {loading && !data ? (
@@ -314,10 +332,33 @@ export default function PropertiesPane({
             </span>
             <span className="text-[var(--ink-4)]">·</span>
             <span className="font-sans">
-              sorted by {sort === 'score' ? 'suitability' : 'suburb'}
+              sorted by{' '}
+              {sort === 'score'
+                ? 'suitability'
+                : sort === 'cost-asc'
+                  ? 'cost ↑'
+                  : sort === 'cost-desc'
+                    ? 'cost ↓'
+                    : 'suburb'}
             </span>
           </div>
         )}
+
+        {/* Sort control */}
+        <div className="mt-2 flex items-center gap-2">
+          <label className="text-[10px] uppercase tracking-[0.1em] text-[var(--ink-3)] font-medium">
+            Sort
+          </label>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as SortBy)}
+            className="focus-ring h-7 px-2 pr-6 rounded-[6px] border border-[var(--line)] bg-[var(--paper-2)] text-[11px] text-[var(--ink-2)] hover:border-[var(--line-strong)] cursor-pointer"
+          >
+            <option value="auto">Best match</option>
+            <option value="cost-asc">True cost — low to high</option>
+            <option value="cost-desc">True cost — high to low</option>
+          </select>
+        </div>
 
         {filterChips.length > 0 && (
           <div className="mt-3 flex items-center gap-1.5 overflow-x-auto scrollbar-thin pb-1 -mb-1">
@@ -351,7 +392,10 @@ export default function PropertiesPane({
       </header>
 
       {/* Body */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin px-6 py-5 space-y-5">
+      <div
+        ref={listScrollRef}
+        className="flex-1 overflow-y-auto scrollbar-thin px-6 py-5 space-y-5"
+      >
         {error ? (
           <div className="text-[13px] text-[var(--danger)]">{error}</div>
         ) : results.length === 0 && !loading ? (

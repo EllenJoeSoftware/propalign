@@ -73,7 +73,11 @@ function snapToRow(d: FirebaseFirestore.QueryDocumentSnapshot): PropertyRow {
     province: v.province,
     source: v.source,
     createdAt: tsToIso(v.createdAt),
-  };
+    // Denormalized for cost-sort. Falls back to price if missing on legacy
+    // (pre-migration) docs.
+    trueMonthlyCost:
+      typeof v.trueMonthlyCost === 'number' ? v.trueMonthlyCost : undefined,
+  } as PropertyRow & { trueMonthlyCost?: number };
 }
 
 // ----------------------------------------------------------------------------

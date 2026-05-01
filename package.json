@@ -10,7 +10,8 @@
     "lint": "eslint",
     "seed:firestore": "ts-node --project scripts/tsconfig.json scripts/firestore-seed.ts",
     "import:extractor": "ts-node --project scripts/tsconfig.json scripts/import-extractor.ts",
-    "migrate:tags": "ts-node --project scripts/tsconfig.json scripts/migrate-search-tags.ts"
+    "migrate:tags": "ts-node --project scripts/tsconfig.json scripts/migrate-search-tags.ts",
+    "clear:firestore": "ts-node --project scripts/tsconfig.json scripts/firestore-clear.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^1.2.12",

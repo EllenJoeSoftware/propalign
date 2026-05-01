@@ -12,7 +12,11 @@ import 'dotenv/config';
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { SUBURBS_BY_PROVINCE, type Province } from '../src/lib/sa-suburbs';
-import { buildSearchTags, computeHasImage } from '../src/lib/property-tags';
+import {
+  buildSearchTags,
+  computeHasImage,
+  computeTrueMonthlyCostSync,
+} from '../src/lib/property-tags';
 
 // ----------------------------------------------------------------------------
 // Firebase init
@@ -269,6 +273,11 @@ function generateProperty(province: Province) {
       location: suburb,
       propertyType,
       bedrooms,
+    }),
+    trueMonthlyCost: computeTrueMonthlyCostSync({
+      price,
+      propertyType,
+      isForRent,
     }),
   };
 }
