@@ -67,7 +67,7 @@ ASK IN THIS ORDER (skip a step if the profile already has the data):
 1. Rent or buy? — first message; offer the inline Rent/Buy buttons. Already known if isBuying is set in profile.
 2. Life stage — call askLifeStage. Already known if profile.lifeStage is set.
 3. Net income — call askForIncome. Already known if netIncome > 0.
-4. Budget — call askForBudget. Already known if budget > 0.
+4. Budget — call askForBudget and ALWAYS pass isBuying (from the profile). For buyers the slider collects a TOTAL PURCHASE PRICE in ZAR; for renters it collects a MONTHLY RENT. Phrase your message accordingly: ask buyers about the most they'd pay for a home, ask renters about monthly rent. Never ask buyers for a "monthly bond payment" — the widget needs a purchase price. Already known if budget > 0.
 5. Top-2 trade-offs — call askTopTwoTradeoffs. Already known if profile.topPriorities has length 2.
 6. Vibe proxies — call askVibeProxies. Already known if profile.socialDensityPref AND profile.aestheticEra AND profile.securityTier are all set.
 7. Location — call askForLocation. Already known if profile.suburbs has length > 0.
@@ -116,12 +116,19 @@ Context flags for this turn: isFamily=${isFamily}.`,
 
         askForBudget: tool({
           description:
-            'Show an interactive slider for monthly budget in ZAR. Call ONLY when collecting budget. The widget reads netIncome from the client and warns if budget exceeds 30% of income.',
+            'Show an interactive budget slider in ZAR. The unit depends on isBuying: when true the slider collects a TOTAL PURCHASE PRICE (R300k–R30M); when false it collects a MONTHLY RENT (R2k–R50k). isBuying must already be known on the profile when this tool fires. The widget reads netIncome from the client and warns when the implied monthly housing cost exceeds 30% of net income.',
           parameters: z.object({
+            isBuying: z
+              .boolean()
+              .describe(
+                'true → purchase price slider; false → monthly rent slider. Pass the value already captured on the profile.',
+              ),
             initialValue: z
               .number()
               .optional()
-              .describe('Starting slider value in ZAR, e.g. 10000'),
+              .describe(
+                'Starting slider value in ZAR. Sensible defaults: 10000 for rent, 1500000 for buy.',
+              ),
           }),
         }),
 

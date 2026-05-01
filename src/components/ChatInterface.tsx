@@ -238,11 +238,18 @@ export default function ChatInterface({
       }
 
       if (toolName === 'askForBudget' && state === 'call') {
+        // Prefer the explicit `isBuying` tool arg (the assistant just passed
+        // its current intent). Fall back to the profile so we never render
+        // the wrong slider if the tool call somehow omitted it.
+        const argIsBuying = (toolInvocation.args as any).isBuying;
+        const isBuying =
+          typeof argIsBuying === 'boolean' ? argIsBuying : profile.isBuying;
         return (
           <div key={toolCallId} className={inBubble ? 'mt-3' : ''}>
             <BudgetWidget
               initialValue={(toolInvocation.args as any).initialValue}
               netIncome={profile.netIncome}
+              isBuying={isBuying}
               onConfirm={(val) => handleBudgetConfirm(val, toolCallId)}
             />
           </div>
