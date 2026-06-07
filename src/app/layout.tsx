@@ -22,10 +22,35 @@ const fraunces = Fraunces({
   display: 'swap',
 });
 
+const title = 'PropAlign — South African Property Concierge';
+const description =
+  'Find the right home in South Africa. PropAlign uses your life-stage, budget, and what actually matters to you to surface listings worth your time.';
+const ogImage = {
+  url: '/og-image.png',
+  width: 1200,
+  height: 630,
+  alt: title,
+};
+
 export const metadata: Metadata = {
-  title: 'PropAlign — South African Property Concierge',
-  description:
-    'Find the right home in South Africa. PropAlign uses your life-stage, budget, and what actually matters to you to surface listings worth your time.',
+  metadataBase: new URL('https://propalign.co.za'),
+  title,
+  description,
+  openGraph: {
+    title,
+    description,
+    url: 'https://propalign.co.za',
+    siteName: 'PropAlign',
+    images: [ogImage],
+    locale: 'en_ZA',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title,
+    description,
+    images: ['/og-image.png'],
+  },
 };
 
 export default function RootLayout({
