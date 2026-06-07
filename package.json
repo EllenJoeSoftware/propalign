@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "seed:firestore": "ts-node --project scripts/tsconfig.json scripts/firestore-seed.ts"
+    "seed:firestore": "ts-node --project scripts/tsconfig.json scripts/firestore-seed.ts",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^1.2.12",
