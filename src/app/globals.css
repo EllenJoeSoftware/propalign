@@ -213,6 +213,31 @@
     letter-spacing: -0.01em;
   }
 
+  /* Blog prose — headings, links, strong text inside articles */
+  .prose-blog h2 {
+    font-family: var(--font-fraunces), ui-serif, Georgia, 'Times New Roman', serif;
+    font-size: 1.25rem;
+    font-weight: 600;
+    line-height: 1.4;
+    color: var(--ink);
+    margin-bottom: 0.5rem;
+  }
+  .prose-blog p {
+    margin-bottom: 1rem;
+  }
+  .prose-blog strong {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .prose-blog a {
+    color: var(--accent-color);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .prose-blog a:hover {
+    opacity: 0.8;
+  }
+
   /* Hairline divider — explicit when border-color isn't enough */
   .divide-hairline > * + * {
     border-top: 1px solid var(--line);
