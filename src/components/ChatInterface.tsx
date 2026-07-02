@@ -10,7 +10,8 @@ import {
   AestheticEra,
   SecurityTier,
 } from '@/lib/scoring';
-import { Loader2, ArrowUp, RotateCcw } from 'lucide-react';
+import { Loader2, ArrowUp, RotateCcw, BookOpen } from 'lucide-react';
+import Link from 'next/link';
 import BudgetWidget from './widgets/BudgetWidget';
 import IncomeWidget from './widgets/IncomeWidget';
 import LocationWidget from './widgets/LocationWidget';
@@ -286,6 +287,14 @@ export default function ChatInterface({
               </>
             )}
           </div>
+          <Link
+            href="/blog"
+            className="focus-ring inline-flex items-center gap-1 h-8 px-2.5 rounded-[6px] border border-[var(--line)] bg-[var(--paper-2)] hover:border-[var(--line-strong)] text-[11px] font-medium text-[var(--ink-2)] transition-colors"
+            title="Read our blog"
+          >
+            <BookOpen className="h-3 w-3" strokeWidth={1.5} />
+            Blog
+          </Link>
           {onReset && (
             <button
               type="button"
