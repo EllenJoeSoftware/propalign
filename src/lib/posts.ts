@@ -1,4 +1,5 @@
 import { BlogPostContent } from '@/content/blog/first-time-renter-joburg-questions';
+import { BlogPostContent as AiPropertyMatchingContent } from '@/content/blog/ai-property-matching-sa';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -21,6 +22,22 @@ export interface BlogPost extends BlogPostMeta {
 // ---------------------------------------------------------------------------
 
 const posts: BlogPost[] = [
+  {
+    slug: 'ai-property-matching-sa',
+    title:
+      'How AI Property Matching Saves South African Homebuyers 40+ Hours',
+    description:
+      'AI-powered property matching is transforming how South Africans find homes. Discover how PropAlign cuts your search time in half.',
+    date: '2026-07-23',
+    keywords: [
+      'AI property matching South Africa',
+      'PropAlign AI concierge',
+      'SA homebuyer tips',
+      'property search time savings',
+      'AI real estate South Africa',
+    ],
+    Content: AiPropertyMatchingContent,
+  },
   {
     slug: 'first-time-renter-joburg-questions',
     title:
